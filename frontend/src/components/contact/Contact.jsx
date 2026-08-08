@@ -1,6 +1,7 @@
 import { Mail, FileText, ArrowRight } from "lucide-react";
 import { FaGithub, FaLinkedin } from "react-icons/fa";
 import ContactCard from "./ContactCard";
+import { Link } from "react-router-dom";
 
 const contacts = [
   {
@@ -64,7 +65,7 @@ export default function Contact() {
 
         <div className="mt-12 flex flex-wrap justify-center gap-5">
 
-          <button
+          <Link to ="/login"
             className="
             rounded-2xl
             bg-gradient-to-r
@@ -80,7 +81,7 @@ export default function Contact() {
 
             Get Started Free
 
-          </button>
+          </Link>
 
           <button
             className="
