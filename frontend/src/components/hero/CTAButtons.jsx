@@ -1,12 +1,13 @@
 import { ArrowRight, Play } from "lucide-react";
-
+import { Link } from "react-router-dom";
 export default function CTAButtons() {
   return (
     <div className="mt-10 flex flex-wrap gap-5">
 
       {/* Primary Button */}
 
-      <button
+      <Link 
+      to="/login"
         className="
         group
         flex
@@ -34,7 +35,7 @@ export default function CTAButtons() {
           size={18}
           className="transition-transform duration-300 group-hover:translate-x-1"
         />
-      </button>
+      </Link>
 
       {/* Secondary Button */}
 
