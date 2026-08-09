@@ -1,40 +1,148 @@
+import { useEffect, useState } from "react";
+
 import StatsCard from "./StatsCard";
+import { useAuth } from "../../context/AuthContext";
 
 
 function StatsGrid() {
 
-    const stats = [
+    const { accessToken } = useAuth();
+
+    const [stats, setStats] = useState({
+        projects: 0,
+        open_tasks: 0,
+        pull_requests: 0,
+        ai_reviews: 0,
+    });
+
+    const [loading, setLoading] = useState(true);
+
+    const [error, setError] = useState("");
+
+
+    useEffect(() => {
+
+        const fetchStats = async () => {
+
+            if (!accessToken) {
+                setLoading(false);
+                return;
+            }
+
+            try {
+
+                setLoading(true);
+                setError("");
+
+                const response = await fetch(
+                    "http://127.0.0.1:8000/api/dashboard/stats",
+                    {
+                        method: "GET",
+
+                        headers: {
+                            "Accept": "application/json",
+                            "Authorization": `Bearer ${accessToken}`,
+                        },
+                    }
+                );
+
+
+                if (!response.ok) {
+                    throw new Error("Failed to fetch dashboard statistics");
+                }
+
+
+                const data = await response.json();
+
+                setStats(data);
+
+            } catch (error) {
+
+                console.error(
+                    "Dashboard stats error:",
+                    error
+                );
+
+                setError(
+                    "Unable to load dashboard statistics."
+                );
+
+            } finally {
+
+                setLoading(false);
+
+            }
+        };
+
+
+        fetchStats();
+
+    }, [accessToken]);
+
+
+    const statsCards = [
         {
             title: "Projects",
-            value: "12",
-            change: "+3 this week",
+            value: stats.projects,
+            change: "Your active projects",
             type: "projects",
         },
         {
             title: "Open Tasks",
-            value: "48",
-            change: "+12 today",
+            value: stats.open_tasks,
+            change: "Tasks requiring attention",
             type: "tasks",
         },
         {
             title: "Pull Requests",
-            value: "16",
-            change: "+5 pending",
+            value: stats.pull_requests,
+            change: "Across your projects",
             type: "pullRequests",
         },
         {
             title: "AI Reviews",
-            value: "24",
-            change: "+18%",
+            value: stats.ai_reviews,
+            change: "Code reviews completed",
             type: "aiReviews",
         },
     ];
 
 
+    if (loading) {
+
+        return (
+            <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+
+                {[1, 2, 3, 4].map((item) => (
+
+                    <div
+                        key={item}
+                        className="h-[140px] animate-pulse rounded-xl border border-white/10 bg-[#111116]"
+                    />
+
+                ))}
+
+            </section>
+        );
+
+    }
+
+
+    if (error) {
+
+        return (
+            <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-5 text-sm text-red-400">
+                {error}
+            </div>
+        );
+
+    }
+
+
     return (
         <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
 
-            {stats.map((stat) => (
+            {statsCards.map((stat) => (
 
                 <StatsCard
                     key={stat.title}

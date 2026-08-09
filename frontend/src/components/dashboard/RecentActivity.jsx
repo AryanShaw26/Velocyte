@@ -1,48 +1,109 @@
+import { useEffect, useState } from "react";
+
 import {
+    Activity,
     CheckCircle2,
+    FolderKanban,
     GitPullRequest,
-    Bot,
-    FolderPlus,
-    Circle,
+    Sparkles,
 } from "lucide-react";
+
+import { useAuth } from "../../context/AuthContext";
 
 
 function RecentActivity() {
 
-    const activities = [
-        {
-            id: 1,
-            title: "Task completed",
-            description: "Authentication flow was completed",
-            time: "20 minutes ago",
-            icon: CheckCircle2,
-            iconStyle: "text-emerald-400 bg-emerald-500/10",
-        },
-        {
-            id: 2,
-            title: "Pull request opened",
-            description: "Added dashboard authentication flow",
-            time: "1 hour ago",
-            icon: GitPullRequest,
-            iconStyle: "text-purple-400 bg-purple-500/10",
-        },
-        {
-            id: 3,
-            title: "AI review completed",
-            description: "Code review finished for authService.js",
-            time: "3 hours ago",
-            icon: Bot,
-            iconStyle: "text-blue-400 bg-blue-500/10",
-        },
-        {
-            id: 4,
-            title: "Project created",
-            description: "New Velocyte workspace created",
-            time: "Yesterday",
-            icon: FolderPlus,
-            iconStyle: "text-amber-400 bg-amber-500/10",
-        },
-    ];
+    const { accessToken } = useAuth();
+
+    const [activities, setActivities] = useState([]);
+
+    const [loading, setLoading] = useState(true);
+
+    const [error, setError] = useState("");
+
+
+    useEffect(() => {
+
+        const fetchActivity = async () => {
+
+            if (!accessToken) {
+                setLoading(false);
+                return;
+            }
+
+            try {
+
+                setLoading(true);
+                setError("");
+
+                const response = await fetch(
+                    "http://127.0.0.1:8000/api/dashboard/activity",
+                    {
+                        method: "GET",
+
+                        headers: {
+                            "Accept": "application/json",
+                            "Authorization": `Bearer ${accessToken}`,
+                        },
+                    }
+                );
+
+
+                if (!response.ok) {
+                    throw new Error(
+                        "Failed to fetch activity"
+                    );
+                }
+
+
+                const data = await response.json();
+
+                setActivities(data);
+
+            } catch (error) {
+
+                console.error(
+                    "Activity error:",
+                    error
+                );
+
+                setError(
+                    "Unable to load recent activity."
+                );
+
+            } finally {
+
+                setLoading(false);
+
+            }
+        };
+
+
+        fetchActivity();
+
+    }, [accessToken]);
+
+
+    const getActivityIcon = (type) => {
+
+        switch (type) {
+
+            case "project":
+                return <FolderKanban size={18} />;
+
+            case "task":
+                return <CheckCircle2 size={18} />;
+
+            case "pull_request":
+                return <GitPullRequest size={18} />;
+
+            case "ai_review":
+                return <Sparkles size={18} />;
+
+            default:
+                return <Activity size={18} />;
+        }
+    };
 
 
     return (
@@ -50,53 +111,106 @@ function RecentActivity() {
 
             {/* Header */}
 
-            <div className="flex items-center justify-between border-b border-white/10 px-6 py-5">
+            <div className="border-b border-white/10 px-6 py-5">
 
-                <div>
+                <h2 className="text-lg font-semibold text-white">
+                    Recent Activity
+                </h2>
 
-                    <h2 className="text-lg font-semibold text-white">
-                        Recent Activity
-                    </h2>
-
-                    <p className="mt-1 text-sm text-gray-500">
-                        Latest activity across your workspace
-                    </p>
-
-                </div>
-
-                <button
-                    type="button"
-                    className="text-sm font-medium text-purple-400 transition hover:text-purple-300"
-                >
-                    View all
-                </button>
+                <p className="mt-1 text-sm text-gray-500">
+                    Latest activity across your workspace
+                </p>
 
             </div>
 
 
+            {/* Loading */}
+
+            {loading && (
+
+                <div className="space-y-4 p-6">
+
+                    {[1, 2, 3, 4].map((item) => (
+
+                        <div
+                            key={item}
+                            className="flex items-center gap-4"
+                        >
+
+                            <div className="h-10 w-10 animate-pulse rounded-full bg-white/[0.04]" />
+
+                            <div className="flex-1">
+
+                                <div className="h-4 w-40 animate-pulse rounded bg-white/[0.04]" />
+
+                                <div className="mt-2 h-3 w-24 animate-pulse rounded bg-white/[0.04]" />
+
+                            </div>
+
+                        </div>
+
+                    ))}
+
+                </div>
+
+            )}
+
+
+            {/* Error */}
+
+            {!loading && error && (
+
+                <div className="p-6 text-sm text-red-400">
+                    {error}
+                </div>
+
+            )}
+
+
+            {/* Empty state */}
+
+            {!loading && !error && activities.length === 0 && (
+
+                <div className="flex flex-col items-center justify-center px-6 py-12 text-center">
+
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-purple-500/10 text-purple-400">
+
+                        <Activity size={22} />
+
+                    </div>
+
+                    <h3 className="mt-4 font-medium text-white">
+                        No recent activity
+                    </h3>
+
+                    <p className="mt-1 max-w-sm text-sm text-gray-500">
+                        Your project and development activity will appear here.
+                    </p>
+
+                </div>
+
+            )}
+
+
             {/* Activity list */}
 
-            <div className="divide-y divide-white/5">
+            {!loading && !error && activities.length > 0 && (
 
-                {activities.map((activity) => {
+                <div className="divide-y divide-white/5">
 
-                    const Icon = activity.icon;
+                    {activities.map((activity) => (
 
-                    return (
                         <div
                             key={activity.id}
-                            className="flex items-center gap-4 px-6 py-5 transition hover:bg-white/[0.02]"
+                            className="flex items-center gap-4 px-6 py-4 transition hover:bg-white/[0.02]"
                         >
 
                             {/* Icon */}
 
-                            <div
-                                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${activity.iconStyle}`}
-                            >
-                                <Icon
-                                    size={19}
-                                    strokeWidth={1.8}
-                                />
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-purple-500/10 text-purple-400">
+
+                                {getActivityIcon(activity.type)}
+
                             </div>
 
 
@@ -104,9 +218,9 @@ function RecentActivity() {
 
                             <div className="min-w-0 flex-1">
 
-                                <h3 className="text-sm font-medium text-white">
+                                <p className="text-sm font-medium text-white">
                                     {activity.title}
-                                </h3>
+                                </p>
 
                                 <p className="mt-1 truncate text-sm text-gray-500">
                                     {activity.description}
@@ -117,26 +231,17 @@ function RecentActivity() {
 
                             {/* Time */}
 
-                            <div className="hidden items-center gap-2 sm:flex">
-
-                                <Circle
-                                    size={5}
-                                    fill="currentColor"
-                                    className="text-gray-600"
-                                />
-
-                                <span className="whitespace-nowrap text-xs text-gray-500">
-                                    {activity.time}
-                                </span>
-
-                            </div>
+                            <span className="shrink-0 text-xs text-gray-500">
+                                {activity.time}
+                            </span>
 
                         </div>
-                    );
 
-                })}
+                    ))}
 
-            </div>
+                </div>
+
+            )}
 
         </section>
     );
