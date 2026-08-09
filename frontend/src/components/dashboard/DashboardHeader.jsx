@@ -1,7 +1,8 @@
 import { Bell, Plus } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 
-function DashboardHeader() {
+function DashboardHeader({ onNewProject }) {
+
     const { user } = useAuth();
 
     const firstName = user?.name
@@ -37,8 +38,6 @@ function DashboardHeader() {
                 >
                     <Bell size={19} />
 
-                    {/* Notification indicator */}
-
                     <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-purple-500" />
                 </button>
 
@@ -47,6 +46,7 @@ function DashboardHeader() {
 
                 <button
                     type="button"
+                    onClick={onNewProject}
                     className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-purple-600 to-violet-500 px-5 py-3 font-semibold text-white shadow-lg shadow-purple-900/20 transition hover:scale-[1.02] hover:from-purple-500 hover:to-violet-400"
                 >
                     <Plus size={19} />

@@ -11,6 +11,7 @@ from app.models.pull_request import PullRequest
 from app.models.ai_review import AIReview
 from app.db import models
 from app.api.dashboard import router as dashboard_router
+from app.routers.projects import router as projects_router
 
 from fastapi.middleware.cors import CORSMiddleware
 @asynccontextmanager
@@ -47,6 +48,7 @@ app.include_router(auth_router)
 
 app.include_router(auth_router)
 app.include_router(dashboard_router)
+app.include_router(projects_router)
 
 @app.get("/")
 def root():
