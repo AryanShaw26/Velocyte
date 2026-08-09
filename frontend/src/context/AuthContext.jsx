@@ -1,154 +1,111 @@
 import { createContext, useContext, useEffect, useState } from "react";
 
-import {
-    loginUser,
-    getCurrentUser,
-} from "../services/authService";
-
+import { loginUser, getCurrentUser } from "../services/authService";
 
 const AuthContext = createContext(null);
 
-
 export function AuthProvider({ children }) {
+  const [user, setUser] = useState(null);
 
-    const [user, setUser] = useState(null);
-    const [accessToken, setAccessToken] = useState(
-        localStorage.getItem("velocyte_access_token")
-    );
+  const [accessToken, setAccessToken] = useState(
+    localStorage.getItem("velocyte_access_token"),
+  );
 
-    const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
 
+  // =====================================
+  // LOAD USER WHEN APP STARTS
+  // =====================================
 
-    // =====================================
-    // LOAD USER WHEN APP STARTS
-    // =====================================
+  useEffect(() => {
+    const loadUser = async () => {
+      if (!accessToken) {
+        setLoading(false);
+        return;
+      }
 
-    useEffect(() => {
+      try {
+        const currentUser = await getCurrentUser(accessToken);
 
-        const loadUser = async () => {
+        setUser(currentUser);
+      } catch (error) {
+        console.error("Authentication failed:", error);
 
-            if (!accessToken) {
-                setLoading(false);
-                return;
-            }
-
-            try {
-
-                const currentUser = await getCurrentUser(
-                    accessToken
-                );
-
-                setUser(currentUser);
-
-            } catch (error) {
-
-                console.error(
-                    "Authentication failed:",
-                    error
-                );
-
-                logout();
-
-            } finally {
-
-                setLoading(false);
-
-            }
-        };
-
-
-        loadUser();
-
-    }, [accessToken]);
-
-
-    // =====================================
-    // LOGIN
-    // =====================================
-
-    const login = async (email, password) => {
-
-        const data = await loginUser({
-            email,
-            password,
-        });
-
-        localStorage.setItem(
-            "velocyte_access_token",
-            data.access_token
-        );
-
-        localStorage.setItem(
-            "velocyte_refresh_token",
-            data.refresh_token
-        );
-
-        setAccessToken(data.access_token);
-
-        setUser(data.user);
-
-        return data;
-
+        logout();
+      } finally {
+        setLoading(false);
+      }
     };
 
+    loadUser();
+  }, [accessToken]);
 
-    // =====================================
-    // LOGOUT
-    // =====================================
+  // =====================================
+  // LOGIN
+  // =====================================
 
-    const logout = () => {
+  const login = async (email, password) => {
+    const data = await loginUser({
+      email,
+      password,
+    });
 
-        localStorage.removeItem(
-            "velocyte_access_token"
-        );
+    localStorage.setItem("velocyte_access_token", data.access_token);
 
-        localStorage.removeItem(
-            "velocyte_refresh_token"
-        );
+    localStorage.setItem("velocyte_refresh_token", data.refresh_token);
 
-        setAccessToken(null);
-        setUser(null);
+    setAccessToken(data.access_token);
 
-    };
+    setUser(data.user);
 
+    return data;
+  };
 
-    // =====================================
-    // AUTH CONTEXT
-    // =====================================
+  // =====================================
+  // LOGOUT
+  // =====================================
 
-    const value = {
-        user,
-        accessToken,
-        isAuthenticated: !!accessToken,
-        loading,
-        login,
-        logout,
-    };
+  const logout = () => {
+    localStorage.removeItem("velocyte_access_token");
 
+    localStorage.removeItem("velocyte_refresh_token");
 
-    return (
-        <AuthContext.Provider value={value}>
-            {children}
-        </AuthContext.Provider>
-    );
+    setAccessToken(null);
+
+    setUser(null);
+  };
+
+  // =====================================
+  // AUTH CONTEXT VALUE
+  // =====================================
+
+  const value = {
+    user,
+
+    accessToken,
+
+    isAuthenticated: !!accessToken,
+
+    loading,
+
+    login,
+
+    logout,
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
-
 
 // =====================================
 // CUSTOM HOOK
 // =====================================
 
 export function useAuth() {
+  const context = useContext(AuthContext);
 
-    const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error("useAuth must be used inside AuthProvider");
+  }
 
-    if (!context) {
-
-        throw new Error(
-            "useAuth must be used inside AuthProvider"
-        );
-
-    }
-
-    return context;
+  return context;
 }
