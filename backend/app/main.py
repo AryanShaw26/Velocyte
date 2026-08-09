@@ -5,6 +5,12 @@ from fastapi import FastAPI
 from app.db.database import Base, engine
 from app.db import models
 from app.routers.auth import router as auth_router
+from app.models.project import Project
+from app.models.task import Task
+from app.models.pull_request import PullRequest
+from app.models.ai_review import AIReview
+from app.db import models
+from app.api.dashboard import router as dashboard_router
 
 from fastapi.middleware.cors import CORSMiddleware
 @asynccontextmanager
@@ -35,7 +41,12 @@ app.add_middleware(
 )
 
 app.include_router(auth_router)
+# ==========================
+# API ROUTES
+# ==========================
 
+app.include_router(auth_router)
+app.include_router(dashboard_router)
 
 @app.get("/")
 def root():
