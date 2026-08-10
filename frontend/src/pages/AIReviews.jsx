@@ -62,6 +62,12 @@ function AIReviews() {
 
   const [selectedPullRequest, setSelectedPullRequest] = useState("");
 
+  // ============================================================
+  // REVIEW DETAILS STATE
+  // ============================================================
+
+  const [expandedReviewId, setExpandedReviewId] = useState(null);
+
 
   // ============================================================
   // EDIT REVIEW STATE
@@ -388,108 +394,6 @@ function AIReviews() {
     }
   };
 
-  const handleCreateReview = async (event) => {
-    event.preventDefault();
-
-    setCreateError("");
-
-    // --------------------------------------------------------
-    // Validate project
-    // --------------------------------------------------------
-
-    if (!selectedProject) {
-      setCreateError("Please select a project.");
-
-      return;
-    }
-
-    // --------------------------------------------------------
-    // Validate Pull Request
-    // --------------------------------------------------------
-
-    if (!selectedPullRequest) {
-      setCreateError("Please select a Pull Request.");
-
-      return;
-    }
-
-    // --------------------------------------------------------
-    // Validate score
-    // --------------------------------------------------------
-
-    if (
-      reviewScore !== "" &&
-      (Number(reviewScore) < 0 || Number(reviewScore) > 100)
-    ) {
-      setCreateError("Score must be between 0 and 100.");
-
-      return;
-    }
-
-    try {
-      setCreating(true);
-
-      // ====================================================
-      // CREATE REVIEW
-      // ====================================================
-
-      const response = await fetch(
-        `http://127.0.0.1:8000/api/projects/${selectedProject}/ai-reviews`,
-        {
-          method: "POST",
-
-          headers: {
-            "Content-Type": "application/json",
-
-            Accept: "application/json",
-
-            Authorization: `Bearer ${accessToken}`,
-          },
-
-          body: JSON.stringify({
-            pull_request_id: selectedPullRequest,
-
-            status: reviewStatus,
-
-            score: reviewScore === "" ? null : Number(reviewScore),
-
-            summary: reviewSummary.trim() || null,
-          }),
-        },
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.detail || "Failed to create AI review.");
-      }
-
-      // ====================================================
-      // RESET FORM
-      // ====================================================
-
-      setReviewStatus("completed");
-
-      setReviewScore("");
-
-      setReviewSummary("");
-
-      setCreateError("");
-
-      // Close modal
-      setShowCreateReview(false);
-
-      // Refresh data
-      await fetchData();
-    } catch (error) {
-      console.error("Create AI review error:", error);
-
-      setCreateError(error.message || "Unable to create AI review.");
-    } finally {
-      setCreating(false);
-    }
-  };
-
   // ============================================================
   // OPEN EDIT MODAL
   // ============================================================
@@ -681,6 +585,29 @@ function AIReviews() {
     }
 
     return "text-red-400";
+  };
+
+  // ============================================================
+  // FINDING SEVERITY STYLES
+  // ============================================================
+
+  const getSeverityStyles = (severity) => {
+    switch (severity) {
+      case "critical":
+        return "bg-red-500/15 text-red-300 border-red-500/20";
+
+      case "high":
+        return "bg-orange-500/15 text-orange-300 border-orange-500/20";
+
+      case "medium":
+        return "bg-yellow-500/15 text-yellow-300 border-yellow-500/20";
+
+      case "low":
+        return "bg-blue-500/15 text-blue-300 border-blue-500/20";
+
+      default:
+        return "bg-gray-500/15 text-gray-300 border-gray-500/20";
+    }
   };
 
   // ============================================================
@@ -945,6 +872,106 @@ function AIReviews() {
                     >
                       <Trash2 size={17} />
                     </button>
+                  </div>
+
+                  {/* FINDINGS */}
+
+                  <div className="mt-5 md:col-span-6">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setExpandedReviewId(
+                          expandedReviewId === review.id ? null : review.id,
+                        )
+                      }
+                      className="flex w-full items-center justify-between rounded-lg border border-white/10 bg-white/[0.02] px-4 py-3 text-left transition hover:bg-white/[0.04]"
+                    >
+                      <div>
+                        <p className="text-sm font-medium text-white">
+                          Findings ({Array.isArray(review.findings) ? review.findings.length : 0})
+                        </p>
+                        <p className="mt-1 text-xs text-gray-500">
+                          {Array.isArray(review.findings) && review.findings.length > 0
+                            ? "View AI-identified issues, explanations, and recommendations."
+                            : "No findings were reported for this review."}
+                        </p>
+                      </div>
+
+                      <span className="text-xs font-medium text-purple-400">
+                        {expandedReviewId === review.id ? "Hide" : "View"}
+                      </span>
+                    </button>
+
+                    {expandedReviewId === review.id && (
+                      <div className="mt-3 space-y-3">
+                        {Array.isArray(review.findings) &&
+                        review.findings.length > 0 ? (
+                          review.findings.map((finding) => (
+                            <div
+                              key={finding.id}
+                              className="rounded-xl border border-white/10 bg-[#0b0b0f] p-5"
+                            >
+                              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                                <div className="min-w-0">
+                                  <h3 className="font-semibold text-white">
+                                    {finding.issue || "Code issue identified"}
+                                  </h3>
+
+                                  <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+                                    {finding.filename && (
+                                      <span className="rounded-md bg-white/5 px-2 py-1 text-gray-400">
+                                        {finding.filename}
+                                      </span>
+                                    )}
+
+                                    {finding.line_reference && (
+                                      <span className="rounded-md bg-white/5 px-2 py-1 text-gray-400">
+                                        {finding.line_reference}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <span
+                                  className={
+                                    "inline-flex w-fit shrink-0 rounded-full border px-3 py-1 text-xs font-semibold uppercase " +
+                                    getSeverityStyles(finding.severity)
+                                  }
+                                >
+                                  {finding.severity || "medium"}
+                                </span>
+                              </div>
+
+                              {finding.explanation && (
+                                <div className="mt-4">
+                                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                    Explanation
+                                  </p>
+                                  <p className="mt-1 text-sm leading-6 text-gray-300">
+                                    {finding.explanation}
+                                  </p>
+                                </div>
+                              )}
+
+                              {finding.recommendation && (
+                                <div className="mt-4 rounded-lg border border-purple-500/10 bg-purple-500/5 p-4">
+                                  <p className="text-xs font-semibold uppercase tracking-wide text-purple-400">
+                                    Recommendation
+                                  </p>
+                                  <p className="mt-1 text-sm leading-6 text-gray-300">
+                                    {finding.recommendation}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          ))
+                        ) : (
+                          <div className="rounded-lg border border-white/10 bg-[#0b0b0f] p-5 text-sm text-gray-500">
+                            This review has no AI findings.
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
