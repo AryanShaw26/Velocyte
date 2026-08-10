@@ -34,3 +34,53 @@ async def test_github_connection():
         "name": user.get("name"),
         "message": "GitHub connection successful",
     }
+
+async def get_pull_requests():
+    headers = {
+        "Authorization": f"Bearer {settings.GITHUB_TOKEN}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+
+    url = f"{GITHUB_API_URL}/repos/{settings.GITHUB_REPOSITORY}/pulls"
+
+    params = {
+        "state": "open",
+        "sort": "updated",
+        "direction": "desc",
+    }
+
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            url,
+            headers=headers,
+            params=params,
+        )
+
+    if response.status_code != 200:
+        return {
+            "success": False,
+            "status_code": response.status_code,
+            "message": "Failed to fetch pull requests",
+        }
+
+    pull_requests = response.json()
+
+    return {
+        "success": True,
+        "count": len(pull_requests),
+        "pull_requests": [
+            {
+                "number": pr.get("number"),
+                "title": pr.get("title"),
+                "state": pr.get("state"),
+                "user": pr.get("user", {}).get("login"),
+                "html_url": pr.get("html_url"),
+                "created_at": pr.get("created_at"),
+                "updated_at": pr.get("updated_at"),
+                "head": pr.get("head", {}).get("ref"),
+                "base": pr.get("base", {}).get("ref"),
+            }
+            for pr in pull_requests
+        ],
+    }

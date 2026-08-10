@@ -11,6 +11,7 @@ class Settings(BaseSettings):
 
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     GITHUB_TOKEN: str
+    GITHUB_REPOSITORY: str
 
 
     model_config = SettingsConfigDict(
