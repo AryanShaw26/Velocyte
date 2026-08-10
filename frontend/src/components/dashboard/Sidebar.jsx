@@ -1,8 +1,10 @@
 import { NavLink, useNavigate } from "react-router-dom";
+
 import {
     LayoutDashboard,
     FolderKanban,
     CheckSquare,
+    GitPullRequest,
     Bot,
     BarChart3,
     Settings,
@@ -15,48 +17,80 @@ import { useAuth } from "../../context/AuthContext";
 function Sidebar() {
 
     const navigate = useNavigate();
+
     const { logout } = useAuth();
 
 
+    // ============================================================
+    // LOGOUT
+    // ============================================================
+
     const handleLogout = () => {
+
         logout();
+
         navigate("/login");
+
     };
 
 
+    // ============================================================
+    // SIDEBAR NAVIGATION ITEMS
+    // ============================================================
+
     const navItems = [
+
         {
             name: "Dashboard",
             path: "/dashboard",
             icon: LayoutDashboard,
         },
+
         {
             name: "Projects",
             path: "/projects",
             icon: FolderKanban,
         },
+
         {
             name: "Tasks",
             path: "/tasks",
             icon: CheckSquare,
         },
+
+        // --------------------------------------------------------
+        // NEW: PULL REQUESTS
+        // --------------------------------------------------------
+
+        {
+            name: "Pull Requests",
+            path: "/pull-requests",
+            icon: GitPullRequest,
+        },
+
         {
             name: "AI Reviews",
             path: "/ai-reviews",
             icon: Bot,
         },
+
         {
             name: "Analytics",
             path: "/analytics",
             icon: BarChart3,
         },
+
     ];
 
 
     return (
+
         <aside className="fixed left-0 top-0 z-40 flex h-screen w-64 flex-col border-r border-white/10 bg-[#0b0b0f]">
 
-            {/* Logo */}
+
+            {/* ==================================================
+                LOGO
+            ================================================== */}
 
             <div className="flex h-20 items-center border-b border-white/10 px-6">
 
@@ -70,7 +104,9 @@ function Sidebar() {
             </div>
 
 
-            {/* Navigation */}
+            {/* ==================================================
+                MAIN NAVIGATION
+            ================================================== */}
 
             <nav className="flex-1 px-4 py-6">
 
@@ -85,7 +121,9 @@ function Sidebar() {
 
                         const Icon = item.icon;
 
+
                         return (
+
                             <NavLink
                                 key={item.name}
                                 to={item.path}
@@ -103,11 +141,13 @@ function Sidebar() {
                                     strokeWidth={1.8}
                                 />
 
+
                                 <span>
                                     {item.name}
                                 </span>
 
                             </NavLink>
+
                         );
 
                     })}
@@ -115,7 +155,9 @@ function Sidebar() {
                 </div>
 
 
-                {/* Bottom Navigation */}
+                {/* =================================================
+                    ACCOUNT NAVIGATION
+                ================================================= */}
 
                 <div className="mt-8">
 
@@ -140,6 +182,7 @@ function Sidebar() {
                             strokeWidth={1.8}
                         />
 
+
                         <span>
                             Settings
                         </span>
@@ -151,7 +194,9 @@ function Sidebar() {
             </nav>
 
 
-            {/* Logout */}
+            {/* ==================================================
+                LOGOUT
+            ================================================== */}
 
             <div className="border-t border-white/10 p-4">
 
@@ -166,6 +211,7 @@ function Sidebar() {
                         strokeWidth={1.8}
                     />
 
+
                     <span>
                         Logout
                     </span>
@@ -175,7 +221,9 @@ function Sidebar() {
             </div>
 
         </aside>
+
     );
+
 }
 
 

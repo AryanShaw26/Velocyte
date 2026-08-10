@@ -1,8 +1,4 @@
-import {
-    BrowserRouter,
-    Routes,
-    Route,
-} from "react-router-dom";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 
 import Landing from "./pages/Landing";
 import Login from "./pages/auth/Login";
@@ -12,53 +8,40 @@ import Dashboard from "./pages/Dashboard";
 import ProtectedRoute from "./routes/ProtectedRoute";
 
 import { AuthProvider } from "./context/AuthContext";
-
-
+import Projects from "./pages/Projects";
+import ProjectDetails from "./pages/ProjectDetails";
+import Tasks from "./pages/Tasks";
+import PullRequests from "./pages/PullRequests";
+import AIReviews from "./pages/AIReviews";
+import Analytics from "./pages/Analytics";
 function App() {
+  return (
+    <BrowserRouter>
+      <AuthProvider>
+        <Routes>
+          {/* Public Routes */}
 
-    return (
-        <BrowserRouter>
+          <Route path="/" element={<Landing />} />
 
-            <AuthProvider>
+          <Route path="/login" element={<Login />} />
 
-                <Routes>
+          <Route path="/register" element={<Register />} />
 
-                    {/* Public Routes */}
+          {/* Protected Routes */}
 
-                    <Route
-                        path="/"
-                        element={<Landing />}
-                    />
-
-                    <Route
-                        path="/login"
-                        element={<Login />}
-                    />
-
-                    <Route
-                        path="/register"
-                        element={<Register />}
-                    />
-
-
-                    {/* Protected Routes */}
-
-                    <Route element={<ProtectedRoute />}>
-
-                        <Route
-                            path="/dashboard"
-                            element={<Dashboard />}
-                        />
-
-                    </Route>
-
-                </Routes>
-
-            </AuthProvider>
-
-        </BrowserRouter>
-    );
+          <Route element={<ProtectedRoute />}>
+            <Route path="/dashboard" element={<Dashboard />} />
+          </Route>
+          <Route path="/projects" element={<Projects />} />
+          <Route path="/projects/:projectId" element={<ProjectDetails />} />
+          <Route path="/tasks" element={<Tasks />} />
+          <Route path="/pull-requests" element={<PullRequests />} />
+          <Route path="/ai-reviews" element={<AIReviews />} />
+          <Route path="/analytics" element={<Analytics />} />
+        </Routes>
+      </AuthProvider>
+    </BrowserRouter>
+  );
 }
-
 
 export default App;
