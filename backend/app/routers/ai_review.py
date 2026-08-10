@@ -10,7 +10,9 @@ from app.core.dependencies import get_current_user
 from app.models.project import Project
 from app.models.pull_request import PullRequest
 from app.models.ai_review import AIReview
-
+from app.services.ai_review_service import (
+    create_ai_review as run_ai_review
+)
 from app.schemas.ai_review import (
     AIReviewCreate,
     AIReviewUpdate,
@@ -115,7 +117,84 @@ def create_ai_review(
 
 
     return review
+# ============================================================
+# RUN AI REVIEW FROM GITHUB PULL REQUEST
+# ============================================================
 
+@router.post(
+    "/{project_id}/ai-reviews/run/{github_pr_number}",
+    response_model=AIReviewResponse,
+    status_code=status.HTTP_201_CREATED
+)
+async def run_github_ai_review(
+    project_id: UUID,
+    github_pr_number: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+
+    # --------------------------------------------------------
+    # 1. Verify project ownership
+    # --------------------------------------------------------
+
+    project = (
+        db.query(Project)
+        .filter(
+            Project.id == project_id,
+            Project.owner_id == current_user.id,
+            Project.is_archived == False
+        )
+        .first()
+    )
+
+    if not project:
+
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found"
+        )
+
+    # --------------------------------------------------------
+    # 2. Find local Pull Request
+    # --------------------------------------------------------
+
+    pull_request = (
+        db.query(PullRequest)
+        .filter(
+            PullRequest.github_pr_number == github_pr_number,
+            PullRequest.project_id == project_id
+        )
+        .first()
+    )
+
+    if not pull_request:
+
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="GitHub Pull Request is not connected to this project"
+        )
+
+    # --------------------------------------------------------
+    # 3. Run Gemini AI review
+    # --------------------------------------------------------
+
+    result = await run_ai_review(github_pr_number)
+
+    if not result.get("success"):
+
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=result.get(
+                "message",
+                "AI review failed"
+            )
+        )
+
+    # --------------------------------------------------------
+    # 4. Return saved AI review
+    # --------------------------------------------------------
+
+    return result
 
 # ============================================================
 # GET AI REVIEWS FOR ONE PROJECT
