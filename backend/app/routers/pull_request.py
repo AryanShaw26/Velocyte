@@ -9,6 +9,8 @@ from app.core.dependencies import get_current_user
 
 from app.models.project import Project
 from app.models.pull_request import PullRequest
+from app.models.ai_review import AIReview
+from app.models.ai_review_finding import AIReviewFinding
 
 from app.schemas.pull_request import (
     PullRequestCreate,
@@ -58,29 +60,21 @@ def create_pull_request(
     )
 
     if not project:
-
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Project not found"
         )
-
 
     # --------------------------------------------------------
     # Create Pull Request
     # --------------------------------------------------------
 
     pull_request = PullRequest(
-
         title=pull_request_data.title,
-
         status=pull_request_data.status,
-
         project_id=project_id,
         github_pr_number=pull_request_data.github_pr_number
-        
-
     )
-
 
     db.add(pull_request)
 
@@ -88,12 +82,11 @@ def create_pull_request(
 
     db.refresh(pull_request)
 
-
     return pull_request
 
 
 # ============================================================
-# GET PULL REQUESTS FOR ONE PROJECT
+# GET OPEN PULL REQUESTS FOR ONE PROJECT
 # ============================================================
 
 @router.get(
@@ -120,23 +113,24 @@ def get_project_pull_requests(
         .first()
     )
 
-
     if not project:
-
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Project not found"
         )
 
-
     # --------------------------------------------------------
-    # Get Pull Requests
+    # Get ONLY OPEN Pull Requests
+    #
+    # Closed and merged PRs remain in the database,
+    # but they will not appear in the AI Review selection.
     # --------------------------------------------------------
 
     pull_requests = (
         db.query(PullRequest)
         .filter(
-            PullRequest.project_id == project_id
+            PullRequest.project_id == project_id,
+            PullRequest.status == "open"
         )
         .order_by(
             PullRequest.id.desc()
@@ -144,18 +138,11 @@ def get_project_pull_requests(
         .all()
     )
 
-
     return pull_requests
 
 
 # ============================================================
 # UPDATE PULL REQUEST
-# ============================================================
-#
-# PATCH:
-#
-# /api/projects/pull-requests/{pull_request_id}
-#
 # ============================================================
 
 @router.patch(
@@ -187,14 +174,11 @@ def update_pull_request(
         .first()
     )
 
-
     if not pull_request:
-
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Pull Request not found"
         )
-
 
     # --------------------------------------------------------
     # Get only fields supplied by the frontend
@@ -206,28 +190,19 @@ def update_pull_request(
         )
     )
 
-
     # --------------------------------------------------------
     # Update title
     # --------------------------------------------------------
 
     if "title" in update_data:
-
-        pull_request.title = (
-            update_data["title"]
-        )
-
+        pull_request.title = update_data["title"]
 
     # --------------------------------------------------------
     # Update status
     # --------------------------------------------------------
 
     if "status" in update_data:
-
-        pull_request.status = (
-            update_data["status"]
-        )
-
+        pull_request.status = update_data["status"]
 
     # --------------------------------------------------------
     # Save changes
@@ -236,7 +211,6 @@ def update_pull_request(
     db.commit()
 
     db.refresh(pull_request)
-
 
     return pull_request
 
@@ -273,23 +247,56 @@ def delete_pull_request(
         .first()
     )
 
-
     if not pull_request:
-
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Pull Request not found"
         )
 
+    # --------------------------------------------------------
+    # Delete AI Review Findings first
+    #
+    # AIReviewFinding -> AIReview
+    # --------------------------------------------------------
+
+    ai_review_ids = (
+        db.query(AIReview.id)
+        .filter(
+            AIReview.pull_request_id == pull_request_id
+        )
+        .all()
+    )
+
+    ai_review_ids = [
+        review_id
+        for (review_id,) in ai_review_ids
+    ]
+
+    if ai_review_ids:
+
+        db.query(AIReviewFinding).filter(
+            AIReviewFinding.ai_review_id.in_(ai_review_ids)
+        ).delete(
+            synchronize_session=False
+        )
+
+        # ----------------------------------------------------
+        # Delete AI Reviews belonging to this Pull Request
+        # ----------------------------------------------------
+
+        db.query(AIReview).filter(
+            AIReview.id.in_(ai_review_ids)
+        ).delete(
+            synchronize_session=False
+        )
 
     # --------------------------------------------------------
-    # Delete
+    # Delete Pull Request
     # --------------------------------------------------------
 
     db.delete(pull_request)
 
     db.commit()
-
 
     return None
 
@@ -336,6 +343,5 @@ def get_all_pull_requests(
         )
         .all()
     )
-
 
     return pull_requests
