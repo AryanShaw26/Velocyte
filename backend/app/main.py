@@ -9,9 +9,21 @@ from app.models.project import Project
 from app.models.task import Task
 from app.models.pull_request import PullRequest
 from app.models.ai_review import AIReview
-from app.db import models
 from app.api.dashboard import router as dashboard_router
 from app.routers.projects import router as projects_router
+from app.routers.tasks import (
+    router as tasks_router,
+    global_task_router
+)
+
+from app.routers.pull_request import (
+    router as pull_request_router,
+    global_pull_request_router
+)
+from app.routers.ai_review import (
+    router as ai_review_router,
+    global_ai_review_router
+)
 
 from fastapi.middleware.cors import CORSMiddleware
 @asynccontextmanager
@@ -40,8 +52,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-app.include_router(auth_router)
 # ==========================
 # API ROUTES
 # ==========================
@@ -49,6 +59,17 @@ app.include_router(auth_router)
 app.include_router(auth_router)
 app.include_router(dashboard_router)
 app.include_router(projects_router)
+app.include_router(tasks_router)
+app.include_router(global_task_router)
+
+# Pull Request routes
+app.include_router(pull_request_router)
+
+app.include_router(global_pull_request_router)
+
+# AI Review routes
+app.include_router(ai_review_router)
+app.include_router(global_ai_review_router)
 
 @app.get("/")
 def root():
