@@ -1,0 +1,57 @@
+# =========================
+# Environment Variables
+# =========================
+.env
+.env.*
+!.env.example
+
+# Backend environment
+backend/.env
+backend/.env.*
+
+# Frontend environment
+frontend/.env
+frontend/.env.*
+
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Python virtual environment
+venv/
+.venv/
+env/
+
+# =========================
+# Node
+# =========================
+node_modules/
+frontend/node_modules/
+
+# =========================
+# Build files
+# =========================
+dist/
+build/
+frontend/dist/
+frontend/build/
+
+# =========================
+# IDE / Editor
+# =========================
+.vscode/
+.idea/
+
+# =========================
+# OS
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# Logs
+# =========================
+*.log
