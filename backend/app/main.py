@@ -24,6 +24,7 @@ from app.routers.ai_review import (
     router as ai_review_router,
     global_ai_review_router
 )
+from app.routers.github import router as github_router
 
 from fastapi.middleware.cors import CORSMiddleware
 @asynccontextmanager
@@ -70,6 +71,8 @@ app.include_router(global_pull_request_router)
 # AI Review routes
 app.include_router(ai_review_router)
 app.include_router(global_ai_review_router)
+
+app.include_router(github_router)
 
 @app.get("/")
 def root():

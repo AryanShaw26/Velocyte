@@ -5,6 +5,7 @@ import {
     FolderKanban,
     CheckSquare,
     GitPullRequest,
+    GitBranch,
     Bot,
     BarChart3,
     Settings,
@@ -58,14 +59,16 @@ function Sidebar() {
             icon: CheckSquare,
         },
 
-        // --------------------------------------------------------
-        // NEW: PULL REQUESTS
-        // --------------------------------------------------------
-
         {
             name: "Pull Requests",
             path: "/pull-requests",
             icon: GitPullRequest,
+        },
+
+        {
+            name: "GitHub",
+            path: "/github",
+            icon: GitBranch,
         },
 
         {
@@ -86,7 +89,6 @@ function Sidebar() {
     return (
 
         <aside className="fixed left-0 top-0 z-40 flex h-screen w-64 flex-col border-r border-white/10 bg-[#0b0b0f]">
-
 
             {/* ==================================================
                 LOGO
@@ -114,13 +116,11 @@ function Sidebar() {
                     Workspace
                 </p>
 
-
                 <div className="space-y-1">
 
                     {navItems.map((item) => {
 
                         const Icon = item.icon;
-
 
                         return (
 
@@ -140,7 +140,6 @@ function Sidebar() {
                                     size={19}
                                     strokeWidth={1.8}
                                 />
-
 
                                 <span>
                                     {item.name}
@@ -165,7 +164,6 @@ function Sidebar() {
                         Account
                     </p>
 
-
                     <NavLink
                         to="/settings"
                         className={({ isActive }) =>
@@ -181,7 +179,6 @@ function Sidebar() {
                             size={19}
                             strokeWidth={1.8}
                         />
-
 
                         <span>
                             Settings
@@ -210,7 +207,6 @@ function Sidebar() {
                         size={19}
                         strokeWidth={1.8}
                     />
-
 
                     <span>
                         Logout
