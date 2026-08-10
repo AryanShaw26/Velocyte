@@ -1,7 +1,7 @@
 import uuid
 
 from sqlalchemy import String, Text, ForeignKey
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.database import Base
 
@@ -64,4 +64,15 @@ class AIReview(Base):
         ForeignKey("pull_requests.id"),
         nullable=False,
         index=True
+    )
+
+    # ============================================================
+    # AI REVIEW FINDINGS
+    # ============================================================
+
+    findings: Mapped[list["AIReviewFinding"]] = relationship(
+        "AIReviewFinding",
+        back_populates="ai_review",
+        cascade="all, delete-orphan",
+        passive_deletes=True
     )

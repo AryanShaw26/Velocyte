@@ -24,6 +24,8 @@ from app.routers.ai_review import (
     router as ai_review_router,
     global_ai_review_router
 )
+from app.models.ai_review_finding import AIReviewFinding
+from app.models.ai_review import AIReview
 from app.routers.github import router as github_router
 from fastapi.middleware.cors import CORSMiddleware
 @asynccontextmanager

@@ -4,6 +4,36 @@ from pydantic import BaseModel, ConfigDict
 
 
 # ============================================================
+# AI REVIEW FINDING RESPONSE
+# ============================================================
+
+class AIReviewFindingResponse(BaseModel):
+    """
+    A single issue identified by the AI code review.
+    """
+
+    id: UUID
+
+    ai_review_id: UUID
+
+    severity: str
+
+    filename: str | None = None
+
+    line_reference: str | None = None
+
+    issue: str
+
+    explanation: str
+
+    recommendation: str
+
+    model_config = ConfigDict(
+        from_attributes=True
+    )
+
+
+# ============================================================
 # CREATE AI REVIEW
 # ============================================================
 
@@ -12,16 +42,12 @@ class AIReviewCreate(BaseModel):
     Data required when creating an AI review.
     """
 
-    # Pull Request that this review belongs to
     pull_request_id: UUID
 
-    # Review status
     status: str = "completed"
 
-    # AI-generated score
     score: int | None = None
 
-    # AI-generated summary
     summary: str | None = None
 
 
@@ -63,6 +89,9 @@ class AIReviewResponse(BaseModel):
     score: int | None
 
     summary: str | None
+
+    # AI-generated code review findings
+    findings: list[AIReviewFindingResponse] = []
 
     model_config = ConfigDict(
         from_attributes=True
