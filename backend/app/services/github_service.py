@@ -176,3 +176,22 @@ async def get_pull_request_files(pr_number: int):
             for file in files
         ],
     }
+
+async def get_pull_request_review_data(pr_number: int):
+    pr_result = await get_pull_request(pr_number)
+
+    if not pr_result.get("success"):
+        return pr_result
+
+    files_result = await get_pull_request_files(pr_number)
+
+    if not files_result.get("success"):
+        return files_result
+
+    return {
+        "success": True,
+        "pull_request": pr_result["pull_request"],
+        "files": files_result["files"],
+        "file_count": files_result["count"],
+    }
+
