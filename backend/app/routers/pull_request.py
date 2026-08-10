@@ -75,7 +75,9 @@ def create_pull_request(
 
         status=pull_request_data.status,
 
-        project_id=project_id
+        project_id=project_id,
+        github_pr_number=pull_request_data.github_pr_number
+        
 
     )
 

@@ -31,3 +31,7 @@ class PullRequest(Base):
         nullable=False,
         index=True
     )
+    github_pr_number: Mapped[int | None] = mapped_column(
+    nullable=True,
+    index=True
+    )

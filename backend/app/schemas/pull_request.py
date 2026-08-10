@@ -15,6 +15,7 @@ class PullRequestCreate(BaseModel):
     title: str
 
     status: str = "open"
+    github_pr_number: int | None = None
 
 
 # ============================================================
@@ -49,6 +50,7 @@ class PullRequestResponse(BaseModel):
     status: str
 
     project_id: UUID
+    github_pr_number: int | None
 
     model_config = ConfigDict(
         from_attributes=True
