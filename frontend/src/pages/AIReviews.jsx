@@ -9,6 +9,11 @@ import {
   X,
   FolderKanban,
   GitPullRequest,
+  Eye,
+  ExternalLink,
+  AlertTriangle,
+  CheckCircle2,
+  Loader2,
 } from "lucide-react";
 
 import Sidebar from "../components/dashboard/Sidebar";
@@ -58,6 +63,8 @@ function AIReviews() {
 
   const [createError, setCreateError] = useState("");
 
+  const [runStage, setRunStage] = useState("");
+
   const [selectedProject, setSelectedProject] = useState("");
 
   const [selectedPullRequest, setSelectedPullRequest] = useState("");
@@ -67,6 +74,8 @@ function AIReviews() {
   // ============================================================
 
   const [expandedReviewId, setExpandedReviewId] = useState(null);
+
+  const [selectedReview, setSelectedReview] = useState(null);
 
 
   // ============================================================
@@ -328,6 +337,7 @@ function AIReviews() {
 
   const handleRunAIReview = async () => {
     setCreateError("");
+    setRunStage("");
 
     if (!selectedProject) {
       setCreateError("Please select a project.");
@@ -357,6 +367,7 @@ function AIReviews() {
 
     try {
       setCreating(true);
+      setRunStage("github");
 
       const response = await fetch(
         `http://127.0.0.1:8000/api/projects/${selectedProject}/ai-reviews/run/${selectedPR.github_pr_number}`,
@@ -371,27 +382,59 @@ function AIReviews() {
         },
       );
 
-      const data = await response.json();
+      setRunStage("processing");
 
-      if (!response.ok) {
-        throw new Error(data.detail || "Failed to run AI review.");
+      let data = {};
+
+      try {
+        data = await response.json();
+      } catch {
+        data = {};
       }
 
-      // Close the modal
-      setShowCreateReview(false);
+      if (!response.ok) {
+        throw new Error(
+          data.detail ||
+            data.message ||
+            "The AI review could not be completed.",
+        );
+      }
 
-      // Refresh AI reviews
+      // Refresh the review list so the new review appears immediately.
       await fetchData();
 
-      // Clear errors
+      setRunStage("completed");
+
+      // Give the user a short success state before closing.
+      await new Promise((resolve) => setTimeout(resolve, 700));
+
+      setShowCreateReview(false);
       setCreateError("");
+      setRunStage("");
     } catch (error) {
       console.error("Run GitHub AI review error:", error);
 
-      setCreateError(error.message || "Unable to run AI review.");
+      setRunStage("failed");
+
+      setCreateError(
+        error.message ||
+          "Unable to run AI review. Please check the backend logs and try again.",
+      );
     } finally {
       setCreating(false);
     }
+  };
+
+  // ============================================================
+  // OPEN REVIEW DETAILS
+  // ============================================================
+
+  const handleOpenDetails = (review) => {
+    setSelectedReview(review);
+  };
+
+  const handleCloseDetails = () => {
+    setSelectedReview(null);
   };
 
   // ============================================================
@@ -791,9 +834,13 @@ function AIReviews() {
                     <div className="flex items-center gap-2">
                       <Bot size={17} className="shrink-0 text-purple-400" />
 
-                      <h2 className="truncate font-semibold text-white">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenDetails(review)}
+                        className="truncate text-left font-semibold text-white transition hover:text-purple-400"
+                      >
                         AI Code Review
-                      </h2>
+                      </button>
                     </div>
 
                     <p className="mt-1 line-clamp-2 text-sm text-gray-500">
@@ -853,6 +900,16 @@ function AIReviews() {
                   {/* ACTIONS */}
 
                   <div className="mt-4 flex justify-end gap-2 md:mt-0">
+                    <button
+                      type="button"
+                      onClick={() => handleOpenDetails(review)}
+                      className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 transition hover:bg-purple-500/10 hover:text-purple-400"
+                      aria-label="View AI review details"
+                      title="View details"
+                    >
+                      <Eye size={17} />
+                    </button>
+
                     <button
                       type="button"
                       onClick={() => handleOpenEdit(review)}
@@ -981,6 +1038,274 @@ function AIReviews() {
       </main>
 
       {/* ======================================================
+                REVIEW DETAILS MODAL
+            ====================================================== */}
+
+      {selectedReview && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 px-4 py-6 backdrop-blur-sm"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              handleCloseDetails();
+            }
+          }}
+        >
+          <div className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#111116] shadow-2xl">
+            {/* HEADER */}
+
+            <div className="flex items-start justify-between border-b border-white/10 px-6 py-5">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <Bot size={20} className="text-purple-400" />
+                  <h2 className="text-xl font-semibold text-white">
+                    AI Code Review
+                  </h2>
+                </div>
+
+                <p className="mt-1 truncate text-sm text-gray-500">
+                  {getPullRequestTitle(selectedReview.pull_request_id)}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleCloseDetails}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-gray-400 transition hover:bg-white/5 hover:text-white"
+                aria-label="Close review details"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* CONTENT */}
+
+            <div className="overflow-y-auto p-6">
+              {/* OVERVIEW */}
+
+              <div className="grid gap-4 md:grid-cols-4">
+                <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+                  <p className="text-xs uppercase tracking-wide text-gray-500">
+                    Score
+                  </p>
+                  <p
+                    className={
+                      "mt-2 text-2xl font-bold " +
+                      getScoreStyles(selectedReview.score)
+                    }
+                  >
+                    {selectedReview.score !== null &&
+                    selectedReview.score !== undefined
+                      ? `${selectedReview.score}/100`
+                      : "—"}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+                  <p className="text-xs uppercase tracking-wide text-gray-500">
+                    Status
+                  </p>
+                  <span
+                    className={
+                      "mt-2 inline-flex rounded-full px-3 py-1 text-xs font-medium " +
+                      getStatusStyles(selectedReview.status)
+                    }
+                  >
+                    {selectedReview.status
+                      .replace("_", " ")
+                      .replace(/\b\w/g, (letter) => letter.toUpperCase())}
+                  </span>
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+                  <p className="text-xs uppercase tracking-wide text-gray-500">
+                    Project
+                  </p>
+                  <p className="mt-2 truncate text-sm font-medium text-white">
+                    {getProjectName(selectedReview.project_id)}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+                  <p className="text-xs uppercase tracking-wide text-gray-500">
+                    Findings
+                  </p>
+                  <p className="mt-2 text-2xl font-bold text-white">
+                    {Array.isArray(selectedReview.findings)
+                      ? selectedReview.findings.length
+                      : 0}
+                  </p>
+                </div>
+              </div>
+
+              {/* SUMMARY */}
+
+              <div className="mt-5 rounded-xl border border-white/10 bg-white/[0.02] p-5">
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  AI Summary
+                </p>
+
+                <p className="mt-2 text-sm leading-7 text-gray-300">
+                  {selectedReview.summary || "No review summary available."}
+                </p>
+              </div>
+
+              {/* FINDINGS */}
+
+              <div className="mt-6">
+                <div className="mb-3 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold text-white">
+                      Review Findings
+                    </h3>
+                    <p className="mt-1 text-sm text-gray-500">
+                      Issues identified by the AI code review engine.
+                    </p>
+                  </div>
+                </div>
+
+                {Array.isArray(selectedReview.findings) &&
+                selectedReview.findings.length > 0 ? (
+                  <div className="space-y-4">
+                    {selectedReview.findings.map((finding, index) => (
+                      <div
+                        key={finding.id || `${selectedReview.id}-${index}`}
+                        className="rounded-xl border border-white/10 bg-[#0b0b0f] p-5"
+                      >
+                        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                          <div className="min-w-0">
+                            <div className="flex items-start gap-3">
+                              <div className="mt-0.5">
+                                {finding.severity === "critical" ||
+                                finding.severity === "high" ? (
+                                  <AlertTriangle
+                                    size={19}
+                                    className="text-orange-400"
+                                  />
+                                ) : (
+                                  <CheckCircle2
+                                    size={19}
+                                    className="text-yellow-400"
+                                  />
+                                )}
+                              </div>
+
+                              <div>
+                                <h4 className="font-semibold text-white">
+                                  {finding.issue || "Code issue identified"}
+                                </h4>
+
+                                <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                                  {finding.filename && (
+                                    <span className="rounded-md bg-white/5 px-2 py-1 text-gray-400">
+                                      {finding.filename}
+                                    </span>
+                                  )}
+
+                                  {finding.line_reference && (
+                                    <span className="rounded-md bg-white/5 px-2 py-1 text-gray-400">
+                                      {finding.line_reference}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <span
+                            className={
+                              "inline-flex w-fit shrink-0 rounded-full border px-3 py-1 text-xs font-semibold uppercase " +
+                              getSeverityStyles(finding.severity)
+                            }
+                          >
+                            {finding.severity || "medium"}
+                          </span>
+                        </div>
+
+                        {finding.explanation && (
+                          <div className="mt-5 border-t border-white/10 pt-4">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                              Explanation
+                            </p>
+                            <p className="mt-2 text-sm leading-7 text-gray-300">
+                              {finding.explanation}
+                            </p>
+                          </div>
+                        )}
+
+                        {finding.recommendation && (
+                          <div className="mt-4 rounded-lg border border-purple-500/10 bg-purple-500/5 p-4">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-purple-400">
+                              Recommendation
+                            </p>
+                            <p className="mt-2 text-sm leading-7 text-gray-300">
+                              {finding.recommendation}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-white/10 bg-white/[0.02] p-8 text-center">
+                    <CheckCircle2
+                      size={28}
+                      className="mx-auto text-green-400"
+                    />
+                    <p className="mt-3 font-medium text-white">
+                      No issues found
+                    </p>
+                    <p className="mt-1 text-sm text-gray-500">
+                      This review did not report any AI findings.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* FOOTER */}
+
+            <div className="flex items-center justify-between gap-3 border-t border-white/10 px-6 py-4">
+              <button
+                type="button"
+                onClick={() => setExpandedReviewId(null)}
+                className="text-sm text-gray-500 transition hover:text-gray-300"
+              >
+                Close expanded findings
+              </button>
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={handleCloseDetails}
+                  className="rounded-lg border border-white/10 px-5 py-2.5 text-sm font-medium text-gray-300 transition hover:bg-white/5 hover:text-white"
+                >
+                  Close
+                </button>
+
+                {(() => {
+                  const selectedPR = pullRequests.find(
+                    (pr) => pr.id === selectedReview.pull_request_id,
+                  );
+
+                  return selectedPR?.html_url ? (
+                    <a
+                      href={selectedPR.html_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-purple-600 to-purple-500 px-5 py-2.5 text-sm font-medium text-white transition hover:from-purple-500 hover:to-purple-400"
+                    >
+                      Open GitHub PR
+                      <ExternalLink size={15} />
+                    </a>
+                  ) : null;
+                })()}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================
                 CREATE AI REVIEW MODAL
             ====================================================== */}
 
@@ -1012,12 +1337,55 @@ function AIReviews() {
 
             {/* FORM */}
 
-            <form onSubmit={handleCreateReview} className="space-y-5 p-6">
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                handleRunAIReview();
+              }}
+              className="space-y-5 p-6"
+            >
               {/* ERROR */}
 
               {createError && (
-                <div className="rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
-                  {createError}
+                <div className="flex items-start gap-3 rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+                  <AlertTriangle size={18} className="mt-0.5 shrink-0" />
+                  <div>
+                    <p className="font-medium">AI review failed</p>
+                    <p className="mt-1 text-red-300/80">{createError}</p>
+                  </div>
+                </div>
+              )}
+
+              {creating && (
+                <div className="rounded-xl border border-purple-500/20 bg-purple-500/5 p-4">
+                  <div className="flex items-center gap-3">
+                    <Loader2
+                      size={20}
+                      className="animate-spin text-purple-400"
+                    />
+                    <div>
+                      <p className="text-sm font-semibold text-white">
+                        {runStage === "github"
+                          ? "Fetching GitHub Pull Request..."
+                          : "AI is analyzing the Pull Request..."}
+                      </p>
+                      <p className="mt-1 text-xs text-gray-500">
+                        GitHub changes are being reviewed by the AI engine.
+                        Please keep this window open.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-white/5">
+                    <div className="h-full w-1/2 animate-pulse rounded-full bg-purple-500" />
+                  </div>
+                </div>
+              )}
+
+              {runStage === "completed" && !creating && (
+                <div className="flex items-center gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3 text-sm text-emerald-400">
+                  <CheckCircle2 size={18} />
+                  <span>AI review completed successfully.</span>
                 </div>
               )}
 
@@ -1101,7 +1469,16 @@ function AIReviews() {
                   }
                   className="rounded-lg bg-gradient-to-r from-purple-600 to-purple-500 px-5 py-2.5 text-sm font-medium text-white transition hover:from-purple-500 hover:to-purple-400 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {creating ? "Running AI Review..." : "Run AI Review"}
+                  {creating ? (
+                    <>
+                      <Loader2 size={16} className="mr-2 inline animate-spin" />
+                      {runStage === "github"
+                        ? "Fetching GitHub..."
+                        : "Analyzing PR..."}
+                    </>
+                  ) : (
+                    "Run AI Review"
+                  )}
                 </button>
               </div>
             </form>
