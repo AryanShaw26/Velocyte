@@ -46,8 +46,7 @@ def get_dashboard_stats(
     # Open tasks in the current user's projects
     #
     # Count all unfinished tasks belonging to projects owned by
-    # the current user. A task does not need to be assigned yet
-    # to appear in the dashboard's Open Tasks count.
+    # the current user.
     # --------------------------------------------------------
 
     open_task_count = (
@@ -65,17 +64,25 @@ def get_dashboard_stats(
 
 
     # --------------------------------------------------------
-    # Pull requests belonging to user's projects
+    # OPEN PULL REQUESTS
+    #
+    # IMPORTANT:
+    #
+    # The dashboard card should show ONLY currently open
+    # Pull Requests.
+    #
+    # Merged and closed Pull Requests must NOT be counted.
     # --------------------------------------------------------
 
-    pull_request_count = (
+    open_pull_request_count = (
         db.query(PullRequest)
         .join(
             Project,
             PullRequest.project_id == Project.id
         )
         .filter(
-            Project.owner_id == current_user.id
+            Project.owner_id == current_user.id,
+            PullRequest.status == "open"
         )
         .count()
     )
@@ -98,10 +105,14 @@ def get_dashboard_stats(
     )
 
 
+    # --------------------------------------------------------
+    # FINAL DASHBOARD RESPONSE
+    # --------------------------------------------------------
+
     return {
         "projects": project_count,
         "open_tasks": open_task_count,
-        "pull_requests": pull_request_count,
+        "pull_requests": open_pull_request_count,
         "ai_reviews": ai_review_count
     }
 
@@ -315,7 +326,6 @@ def get_analytics(
     # TASK ANALYTICS
     # ========================================================
 
-    # Total tasks belonging to user's projects
     total_tasks = (
         db.query(Task)
         .join(
@@ -329,7 +339,10 @@ def get_analytics(
     )
 
 
+    # --------------------------------------------------------
     # Completed tasks
+    # --------------------------------------------------------
+
     completed_tasks = (
         db.query(Task)
         .join(
@@ -344,7 +357,10 @@ def get_analytics(
     )
 
 
+    # --------------------------------------------------------
     # Open tasks
+    # --------------------------------------------------------
+
     open_tasks = (
         db.query(Task)
         .join(
@@ -420,7 +436,10 @@ def get_analytics(
     )
 
 
+    # ========================================================
     # Average AI score
+    # ========================================================
+
     average_score = (
         db.query(func.avg(AIReview.score))
         .join(
@@ -435,9 +454,11 @@ def get_analytics(
     )
 
 
-    # Convert Decimal/float result into JSON-friendly value
     if average_score is not None:
-        average_score = round(float(average_score), 2)
+        average_score = round(
+            float(average_score),
+            2
+        )
 
 
     # ========================================================
