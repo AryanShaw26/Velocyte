@@ -16,6 +16,7 @@ import {
   Loader2,
 } from "lucide-react";
 
+
 import Sidebar from "../components/dashboard/Sidebar";
 import { useAuth } from "../context/AuthContext";
 
@@ -275,6 +276,125 @@ function AIReviews() {
       (pullRequest) => pullRequest.project_id === selectedProject,
     );
   }, [pullRequests, selectedProject]);
+
+  // ============================================================
+  // REVIEW HISTORY + SCORE TREND DATA
+  // ============================================================
+
+  const projectReviewHistory = useMemo(() => {
+    const scopedReviews = selectedProject
+      ? reviews.filter((review) => review.project_id === selectedProject)
+      : reviews;
+
+    return [...scopedReviews]
+      .filter((review) => review.created_at)
+      .sort(
+        (a, b) =>
+          new Date(a.created_at).getTime() -
+          new Date(b.created_at).getTime(),
+      );
+  }, [reviews, selectedProject]);
+
+  const scoredHistory = useMemo(() => {
+    return projectReviewHistory.filter(
+      (review) =>
+        review.score !== null &&
+        review.score !== undefined &&
+        !Number.isNaN(Number(review.score)),
+    );
+  }, [projectReviewHistory]);
+
+  const formatReviewDate = (value) => {
+    if (!value) {
+      return "Date unavailable";
+    }
+
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+      return "Date unavailable";
+    }
+
+    return date.toLocaleString([], {
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
+  };
+
+  const getTrendPoints = () => {
+    if (scoredHistory.length === 0) {
+      return "";
+    }
+
+    const width = 760;
+    const height = 220;
+    const paddingX = 36;
+    const paddingY = 24;
+
+    const usableWidth = width - paddingX * 2;
+    const usableHeight = height - paddingY * 2;
+
+    return scoredHistory
+      .map((review, index) => {
+        const x =
+          scoredHistory.length === 1
+            ? width / 2
+            : paddingX +
+              (index / (scoredHistory.length - 1)) * usableWidth;
+
+        const score = Math.max(
+          0,
+          Math.min(100, Number(review.score)),
+        );
+
+        const y =
+          height -
+          paddingY -
+          (score / 100) * usableHeight;
+
+        return `${x},${y}`;
+      })
+      .join(" ");
+  };
+
+  const getTrendPointCoordinates = () => {
+    if (scoredHistory.length === 0) {
+      return [];
+    }
+
+    const width = 760;
+    const height = 220;
+    const paddingX = 36;
+    const paddingY = 24;
+
+    const usableWidth = width - paddingX * 2;
+    const usableHeight = height - paddingY * 2;
+
+    return scoredHistory.map((review, index) => {
+      const x =
+        scoredHistory.length === 1
+          ? width / 2
+          : paddingX +
+            (index / (scoredHistory.length - 1)) * usableWidth;
+
+      const score = Math.max(
+        0,
+        Math.min(100, Number(review.score)),
+      );
+
+      const y =
+        height -
+        paddingY -
+        (score / 100) * usableHeight;
+
+      return {
+        x,
+        y,
+        score,
+        review,
+      };
+    });
+  };
 
   // ============================================================
   // FILTER REVIEWS
@@ -755,6 +875,300 @@ function AIReviews() {
               <option value="failed">Failed</option>
             </select>
           </div>
+
+          {/* ==================================================
+                        REVIEW HISTORY + SCORE TREND
+                    ================================================== */}
+
+          {!error && (
+            <section className="mb-8 space-y-5">
+              {/* Analytics header */}
+
+              <div className="flex flex-col gap-4 rounded-xl border border-white/10 bg-[#111116] p-5 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Bot size={18} className="text-purple-400" />
+                    <h2 className="text-lg font-semibold text-white">
+                      Code Quality History
+                    </h2>
+                  </div>
+
+                  <p className="mt-1 text-sm text-gray-500">
+                    Track previous AI reviews and score changes over time.
+                  </p>
+                </div>
+
+                <select
+                  value={selectedProject}
+                  onChange={handleProjectChange}
+                  className="w-full rounded-lg border border-white/10 bg-[#0b0b0f] px-4 py-2.5 text-sm text-gray-300 outline-none focus:border-purple-500 lg:w-64"
+                >
+                  <option value="">All projects</option>
+
+                  {projects.map((project) => (
+                    <option key={project.id} value={project.id}>
+                      {project.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* History */}
+
+              <div className="rounded-xl border border-white/10 bg-[#111116] p-5">
+                <div className="mb-4 flex items-center justify-between">
+                  <div>
+                    <h3 className="font-semibold text-white">
+                      Review History
+                    </h3>
+
+                    <p className="mt-1 text-xs text-gray-500">
+                      {selectedProject
+                        ? `Previous reviews for ${getProjectName(selectedProject)}`
+                        : "Previous AI reviews across your projects"}
+                    </p>
+                  </div>
+
+                  <span className="rounded-full bg-purple-500/10 px-3 py-1 text-xs font-medium text-purple-400">
+                    {projectReviewHistory.length} review
+                    {projectReviewHistory.length === 1 ? "" : "s"}
+                  </span>
+                </div>
+
+                {projectReviewHistory.length > 0 ? (
+                  <div className="space-y-2">
+                    {[...projectReviewHistory]
+                      .reverse()
+                      .map((review, index) => (
+                        <button
+                          key={review.id}
+                          type="button"
+                          onClick={() => handleOpenDetails(review)}
+                          className="grid w-full grid-cols-[1fr_auto] items-center gap-4 rounded-lg border border-white/10 bg-white/[0.02] p-4 text-left transition hover:border-purple-500/20 hover:bg-white/[0.04] md:grid-cols-[1.8fr_1fr_120px_110px]"
+                        >
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-medium text-white">
+                              {getPullRequestTitle(review.pull_request_id)}
+                            </p>
+
+                            <p className="mt-1 text-xs text-gray-500">
+                              {formatReviewDate(review.created_at)}
+                            </p>
+                          </div>
+
+                          <span className="hidden truncate text-xs text-gray-400 md:block">
+                            {getProjectName(review.project_id)}
+                          </span>
+
+                          <span
+                            className={
+                              "text-sm font-bold " +
+                              getScoreStyles(review.score)
+                            }
+                          >
+                            {review.score !== null &&
+                            review.score !== undefined
+                              ? `${review.score}/100`
+                              : "—"}
+                          </span>
+
+                          <span
+                            className={
+                              "hidden rounded-full px-2.5 py-1 text-center text-xs font-medium md:inline-flex " +
+                              getStatusStyles(review.status)
+                            }
+                          >
+                            {review.status
+                              .replace("_", " ")
+                              .replace(/\b\w/g, (letter) =>
+                                letter.toUpperCase(),
+                              )}
+                          </span>
+
+                          <span className="text-xs text-purple-400 md:hidden">
+                            View
+                          </span>
+                        </button>
+                      ))}
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-white/10 bg-[#0b0b0f] p-8 text-center">
+                    <p className="text-sm font-medium text-white">
+                      No review history yet
+                    </p>
+
+                    <p className="mt-1 text-xs text-gray-500">
+                      Completed reviews will appear here automatically.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Score Trend */}
+
+              <div className="rounded-xl border border-white/10 bg-[#111116] p-5">
+                <div className="mb-4">
+                  <h3 className="font-semibold text-white">
+                    Score Trend
+                  </h3>
+
+                  <p className="mt-1 text-xs text-gray-500">
+                    AI code quality score over time.
+                  </p>
+                </div>
+
+                {scoredHistory.length > 0 ? (
+                  <>
+                    <div className="overflow-x-auto">
+                      <svg
+                        viewBox="0 0 760 220"
+                        className="h-56 min-w-[680px] w-full"
+                        role="img"
+                        aria-label="AI review score trend"
+                      >
+                        {[0, 25, 50, 75, 100].map((score) => {
+                          const y = 196 - (score / 100) * 172;
+
+                          return (
+                            <g key={score}>
+                              <line
+                                x1="36"
+                                y1={y}
+                                x2="724"
+                                y2={y}
+                                stroke="rgba(255,255,255,0.08)"
+                                strokeWidth="1"
+                              />
+
+                              <text
+                                x="4"
+                                y={y + 4}
+                                fill="rgba(156,163,175,0.8)"
+                                fontSize="11"
+                              >
+                                {score}
+                              </text>
+                            </g>
+                          );
+                        })}
+
+                        <polyline
+                          points={getTrendPoints()}
+                          fill="none"
+                          stroke="#a855f7"
+                          strokeWidth="3"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+
+                        {getTrendPointCoordinates().map(
+                          ({ x, y, score, review }, index) => (
+                            <g key={review.id}>
+                              <circle
+                                cx={x}
+                                cy={y}
+                                r="5"
+                                fill="#a855f7"
+                                stroke="#111116"
+                                strokeWidth="3"
+                              />
+
+                              <text
+                                x={x}
+                                y={y - 11}
+                                textAnchor="middle"
+                                fill="white"
+                                fontSize="11"
+                                fontWeight="600"
+                              >
+                                {score}
+                              </text>
+
+                              <text
+                                x={x}
+                                y="212"
+                                textAnchor="middle"
+                                fill="rgba(156,163,175,0.8)"
+                                fontSize="10"
+                              >
+                                R{index + 1}
+                              </text>
+                            </g>
+                          ),
+                        )}
+                      </svg>
+                    </div>
+
+                    <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                      <div className="rounded-lg border border-white/10 bg-white/[0.02] p-4">
+                        <p className="text-xs uppercase tracking-wide text-gray-500">
+                          Reviews
+                        </p>
+                        <p className="mt-1 text-xl font-bold text-white">
+                          {scoredHistory.length}
+                        </p>
+                      </div>
+
+                      <div className="rounded-lg border border-white/10 bg-white/[0.02] p-4">
+                        <p className="text-xs uppercase tracking-wide text-gray-500">
+                          Latest Score
+                        </p>
+                        <p
+                          className={
+                            "mt-1 text-xl font-bold " +
+                            getScoreStyles(
+                              scoredHistory[scoredHistory.length - 1].score,
+                            )
+                          }
+                        >
+                          {scoredHistory[scoredHistory.length - 1].score}/100
+                        </p>
+                      </div>
+
+                      <div className="rounded-lg border border-white/10 bg-white/[0.02] p-4">
+                        <p className="text-xs uppercase tracking-wide text-gray-500">
+                          Change
+                        </p>
+                        <p
+                          className={
+                            "mt-1 text-xl font-bold " +
+                            (Number(
+                              scoredHistory[scoredHistory.length - 1].score,
+                            ) -
+                              Number(scoredHistory[0].score) >=
+                            0
+                              ? "text-emerald-400"
+                              : "text-red-400")
+                          }
+                        >
+                          {Number(
+                            scoredHistory[scoredHistory.length - 1].score,
+                          ) -
+                            Number(scoredHistory[0].score) >=
+                          0
+                            ? "+"
+                            : ""}
+                          {Number(
+                            scoredHistory[scoredHistory.length - 1].score,
+                          ) - Number(scoredHistory[0].score)}
+                        </p>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="rounded-lg border border-white/10 bg-[#0b0b0f] p-8 text-center">
+                    <p className="text-sm font-medium text-white">
+                      No score history yet
+                    </p>
+
+                    <p className="mt-1 text-xs text-gray-500">
+                      Run at least one scored AI review to start the trend.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
 
           {/* ==================================================
                         ERROR

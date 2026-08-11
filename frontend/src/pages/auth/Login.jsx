@@ -2,9 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 
-
 function Login() {
-
     const navigate = useNavigate();
 
     const { login } = useAuth();
@@ -15,34 +13,47 @@ function Login() {
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
 
+    // ============================================================
+    // EMAIL / PASSWORD LOGIN
+    // ============================================================
 
     const handleSubmit = async (e) => {
-
         e.preventDefault();
 
         setError("");
         setLoading(true);
 
         try {
-
             await login(email, password);
 
             // Login successful
-            navigate("/dashboard");
+            // Replace login page in browser history
+            navigate("/dashboard", {
+                replace: true,
+            });
 
         } catch (error) {
-
             setError(
                 error.message || "Invalid email or password"
             );
 
         } finally {
-
             setLoading(false);
-
         }
     };
 
+    // ============================================================
+    // GITHUB LOGIN
+    // ============================================================
+
+    const handleGitHubLogin = () => {
+        window.location.href =
+            "http://127.0.0.1:8000/api/auth/github";
+    };
+
+    // ============================================================
+    // UI
+    // ============================================================
 
     return (
         <div className="min-h-screen bg-[#07070a] text-white flex items-center justify-center px-4">
@@ -87,6 +98,8 @@ function Login() {
 
                     )}
 
+
+                    {/* Email / Password Form */}
 
                     <form
                         onSubmit={handleSubmit}
@@ -156,7 +169,7 @@ function Login() {
                         </div>
 
 
-                        {/* Login button */}
+                        {/* Login Button */}
 
                         <button
                             type="submit"
@@ -172,6 +185,32 @@ function Login() {
                         </button>
 
                     </form>
+
+
+                    {/* Divider */}
+
+                    <div className="my-6 flex items-center gap-3">
+
+                        <div className="h-px flex-1 bg-white/10" />
+
+                        <span className="text-xs text-gray-500">
+                            OR
+                        </span>
+
+                        <div className="h-px flex-1 bg-white/10" />
+
+                    </div>
+
+
+                    {/* GitHub Login */}
+
+                    <button
+                        type="button"
+                        onClick={handleGitHubLogin}
+                        className="w-full rounded-lg border border-white/10 bg-[#0b0b0f] py-3 font-semibold text-white transition hover:border-purple-500 hover:bg-white/5"
+                    >
+                        Continue with GitHub
+                    </button>
 
 
                     {/* Register */}
@@ -210,6 +249,5 @@ function Login() {
         </div>
     );
 }
-
 
 export default Login;

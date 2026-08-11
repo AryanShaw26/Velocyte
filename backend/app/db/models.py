@@ -12,10 +12,18 @@ class User(Base):
 
     __tablename__ = "users"
 
+    # ============================================================
+    # USER ID
+    # ============================================================
+
     id: Mapped[uuid.UUID] = mapped_column(
         primary_key=True,
         default=uuid.uuid4
     )
+
+    # ============================================================
+    # BASIC PROFILE
+    # ============================================================
 
     name: Mapped[str] = mapped_column(
         String(100),
@@ -29,16 +37,44 @@ class User(Base):
         nullable=False
     )
 
+    # ============================================================
+    # PASSWORD
+    # ============================================================
+
     password_hash: Mapped[str] = mapped_column(
         String(255),
         nullable=False
     )
+
+    # ============================================================
+    # GITHUB OAUTH
+    # ============================================================
+
+    github_id: Mapped[str | None] = mapped_column(
+        String(100),
+        unique=True,
+        nullable=True,
+        index=True
+    )
+
+    github_username: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True
+    )
+
+    # ============================================================
+    # VERIFICATION
+    # ============================================================
 
     is_verified: Mapped[bool] = mapped_column(
         Boolean,
         default=False,
         nullable=False
     )
+
+    # ============================================================
+    # TIMESTAMPS
+    # ============================================================
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime,

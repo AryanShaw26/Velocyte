@@ -23,6 +23,15 @@ class LoginRequest(BaseModel):
         max_length=128
     )
 
+class ProfileUpdateRequest(BaseModel):
+    name: str | None = Field(
+        default=None,
+        min_length=2,
+        max_length=100
+    )
+
+    email: EmailStr | None = None
+
 
 class UserResponse(BaseModel):
     id: str
