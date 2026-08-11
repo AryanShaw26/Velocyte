@@ -15,6 +15,7 @@ import PullRequests from "./pages/PullRequests";
 import AIReviews from "./pages/AIReviews";
 import Analytics from "./pages/Analytics";
 import GitHubCallback from "./pages/auth/GitHubCallback";
+import GitHubConnectCallback from "./pages/auth/GitHubConnectCallback";
 function App() {
   return (
     <BrowserRouter>
@@ -22,13 +23,20 @@ function App() {
         <Routes>
           {/* Public Routes */}
 
+          {/* Public Routes */}
+
           <Route path="/" element={<Landing />} />
 
           <Route path="/login" element={<Login />} />
 
           <Route path="/register" element={<Register />} />
+
           <Route path="/github-callback" element={<GitHubCallback />} />
 
+          <Route
+            path="/github-connect-callback"
+            element={<GitHubConnectCallback />}
+          />
           {/* Protected Routes */}
 
           <Route element={<ProtectedRoute />}>

@@ -1,7 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { getCurrentUser } from "../../services/authService";
 import { useAuth } from "../../context/AuthContext";
 
 function GitHubCallback() {
@@ -10,8 +9,21 @@ function GitHubCallback() {
 
   const [error, setError] = useState("");
 
+  // Prevent the callback from being processed twice
+  const processedRef = useRef(false);
+
   useEffect(() => {
     const handleGitHubCallback = async () => {
+      // --------------------------------------------------
+      // Prevent duplicate callback processing
+      // --------------------------------------------------
+
+      if (processedRef.current) {
+        return;
+      }
+
+      processedRef.current = true;
+
       try {
         // --------------------------------------------------
         // Read tokens from URL hash
@@ -24,14 +36,40 @@ function GitHubCallback() {
         const accessToken = params.get("access_token");
         const refreshToken = params.get("refresh_token");
 
+        // --------------------------------------------------
+        // If tokens are missing, check whether another
+        // callback process has already handled them.
+        // --------------------------------------------------
+
         if (!accessToken || !refreshToken) {
+          const alreadyProcessed = sessionStorage.getItem(
+            "github_oauth_processed"
+          );
+
+          if (alreadyProcessed === "true") {
+            navigate("/dashboard", {
+              replace: true,
+            });
+
+            return;
+          }
+
           throw new Error(
             "GitHub authentication tokens were not received."
           );
         }
 
         // --------------------------------------------------
-        // Store tokens and update authentication state
+        // Mark OAuth callback as being processed
+        // --------------------------------------------------
+
+        sessionStorage.setItem(
+          "github_oauth_processed",
+          "true"
+        );
+
+        // --------------------------------------------------
+        // Store Velocyte tokens and update auth state
         // --------------------------------------------------
 
         await loginWithTokens(
@@ -63,8 +101,13 @@ function GitHubCallback() {
           err
         );
 
+        // Allow another legitimate login attempt
+        sessionStorage.removeItem(
+          "github_oauth_processed"
+        );
+
         setError(
-          err.message ||
+          err?.message ||
           "GitHub authentication failed."
         );
       }
@@ -90,7 +133,12 @@ function GitHubCallback() {
           padding: "24px",
         }}
       >
-        <div style={{ textAlign: "center" }}>
+        <div
+          style={{
+            textAlign: "center",
+            maxWidth: "500px",
+          }}
+        >
           <h2>GitHub Authentication Failed</h2>
 
           <p

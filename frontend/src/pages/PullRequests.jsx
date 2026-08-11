@@ -2,116 +2,379 @@ import { useEffect, useMemo, useState } from "react";
 
 import {
   GitPullRequest,
-  Plus,
   Search,
-  Trash2,
-  Pencil,
-  X,
+  ExternalLink,
   FolderKanban,
+  RefreshCw,
+  GitBranch,
+  X,
+  ArrowLeft,
+  Calendar,
+  User,
+  FileCode2,
+  GitMerge,
 } from "lucide-react";
 
 import Sidebar from "../components/dashboard/Sidebar";
 import { useAuth } from "../context/AuthContext";
 
-
 function PullRequests() {
-
   // ============================================================
   // AUTHENTICATION
   // ============================================================
 
   const { accessToken } = useAuth();
 
-
   // ============================================================
   // DATA
   // ============================================================
 
-  // All Pull Requests
+  const [projects, setProjects] = useState([]);
   const [pullRequests, setPullRequests] = useState([]);
 
-  // All projects
-  const [projects, setProjects] = useState([]);
+  // ============================================================
+  // SELECTED PROJECT
+  // ============================================================
 
+  const [selectedProject, setSelectedProject] = useState("");
+
+  // ============================================================
+  // SELECTED PR
+  // ============================================================
+
+  const [selectedPR, setSelectedPR] = useState(null);
+
+  const [loadingPRDetails, setLoadingPRDetails] =
+    useState(false);
+
+  const [prDetailsError, setPrDetailsError] =
+    useState("");
+
+  // ============================================================
+  // PR CODE CHANGES
+  // ============================================================
+
+  const [changedFiles, setChangedFiles] = useState([]);
+  const [prDiff, setPrDiff] = useState("");
+  const [loadingChanges, setLoadingChanges] = useState(false);
+  const [changesError, setChangesError] = useState("");
+  const [expandedFiles, setExpandedFiles] = useState({});
+
+  // ============================================================
+  // AI REVIEW
+  // ============================================================
+
+  const [aiReview, setAIReview] = useState(null);
+  const [runningAIReview, setRunningAIReview] = useState(false);
+  const [aiReviewError, setAIReviewError] = useState("");
+
+  // ============================================================
+  // GITHUB PR ACTIONS
+  // ============================================================
+
+  const [prAction, setPRAction] = useState(null);
+  const [prActionError, setPRActionError] = useState("");
+  const [showPRActionModal, setShowPRActionModal] = useState(false);
+  const [processingPRAction, setProcessingPRAction] = useState(false);
 
   // ============================================================
   // SEARCH + FILTER
   // ============================================================
 
   const [search, setSearch] = useState("");
-
   const [statusFilter, setStatusFilter] = useState("all");
-
 
   // ============================================================
   // PAGE STATE
   // ============================================================
 
-  const [loading, setLoading] = useState(true);
+  const [loadingProjects, setLoadingProjects] =
+    useState(true);
+
+  const [loadingPRs, setLoadingPRs] =
+    useState(false);
 
   const [error, setError] = useState("");
-
-
-  // ============================================================
-  // CREATE PR STATE
-  // ============================================================
-
-  const [showCreatePR, setShowCreatePR] = useState(false);
-
-  const [creating, setCreating] = useState(false);
-
-  const [createError, setCreateError] = useState("");
-
-  const [prTitle, setPrTitle] = useState("");
-
-  const [prStatus, setPrStatus] = useState("open");
-
-  const [selectedProject, setSelectedProject] = useState("");
-
+  const [prError, setPrError] = useState("");
 
   // ============================================================
-  // EDIT PR STATE
+  // AUTH HEADERS
   // ============================================================
 
-  const [showEditPR, setShowEditPR] = useState(false);
-
-  const [editingPR, setEditingPR] = useState(null);
-
-  const [updating, setUpdating] = useState(false);
-
-  const [updateError, setUpdateError] = useState("");
-
+  const getHeaders = () => ({
+    Accept: "application/json",
+    Authorization: `Bearer ${accessToken}`,
+  });
 
   // ============================================================
-  // FETCH DATA
+  // FETCH PROJECTS
   // ============================================================
 
-  const fetchData = async () => {
-
+  const fetchProjects = async () => {
     if (!accessToken) {
-
-      setLoading(false);
-
+      setLoadingProjects(false);
       return;
     }
 
-
     try {
-
-      setLoading(true);
-
+      setLoadingProjects(true);
       setError("");
 
-
-      // ========================================================
-      // FETCH ALL PULL REQUESTS
-      // ========================================================
-
-      const prResponse = await fetch(
-        "http://127.0.0.1:8000/api/pull-requests",
+      const response = await fetch(
+        "http://127.0.0.1:8000/api/projects",
         {
           method: "GET",
+          headers: getHeaders(),
+        }
+      );
 
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.detail || "Failed to load projects."
+        );
+      }
+
+      const projectList = Array.isArray(data)
+        ? data
+        : data.projects || [];
+
+      setProjects(projectList);
+
+      // Automatically select first GitHub project
+      if (!selectedProject) {
+        const githubProject = projectList.find(
+          (project) =>
+            project.github_repo_id &&
+            project.github_owner &&
+            project.github_repository
+        );
+
+        if (githubProject) {
+          setSelectedProject(
+            githubProject.id
+          );
+        }
+      }
+    } catch (error) {
+      console.error(
+        "Fetch projects error:",
+        error
+      );
+
+      setError(
+        error.message ||
+          "Unable to load projects."
+      );
+    } finally {
+      setLoadingProjects(false);
+    }
+  };
+
+  // ============================================================
+  // FETCH REAL GITHUB PULL REQUESTS
+  // ============================================================
+
+  const fetchGithubPullRequests = async (
+    projectId = selectedProject
+  ) => {
+    if (!accessToken || !projectId) {
+      setPullRequests([]);
+      return;
+    }
+
+    try {
+      setLoadingPRs(true);
+      setPrError("");
+
+      const response = await fetch(
+        `http://127.0.0.1:8000/api/github/projects/${projectId}/pull-requests`,
+        {
+          method: "GET",
+          headers: getHeaders(),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.detail ||
+            "Failed to load GitHub pull requests."
+        );
+      }
+
+      const githubPRs = Array.isArray(
+        data.pull_requests
+      )
+        ? data.pull_requests
+        : [];
+
+      setPullRequests(githubPRs);
+    } catch (error) {
+      console.error(
+        "Fetch GitHub pull requests error:",
+        error
+      );
+
+      setPullRequests([]);
+
+      setPrError(
+        error.message ||
+          "Unable to load GitHub pull requests."
+      );
+    } finally {
+      setLoadingPRs(false);
+    }
+  };
+
+  // ============================================================
+  // FETCH ONE GITHUB PR
+  // ============================================================
+
+  const fetchPullRequestDetails = async (
+    prNumber
+  ) => {
+    if (
+      !accessToken ||
+      !selectedProject ||
+      !prNumber
+    ) {
+      return;
+    }
+
+    try {
+      setLoadingPRDetails(true);
+      setPrDetailsError("");
+
+      const response = await fetch(
+        `http://127.0.0.1:8000/api/github/projects/${selectedProject}/pull-requests/${prNumber}`,
+        {
+          method: "GET",
+          headers: getHeaders(),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.detail ||
+            "Failed to load pull request details."
+        );
+      }
+
+      setSelectedPR(
+        data.pull_request
+      );
+    } catch (error) {
+      console.error(
+        "Fetch PR details error:",
+        error
+      );
+
+      setPrDetailsError(
+        error.message ||
+          "Unable to load pull request details."
+      );
+    } finally {
+      setLoadingPRDetails(false);
+    }
+  };
+
+  // ============================================================
+  // FETCH PR CHANGED FILES + ACTUAL DIFF
+  // ============================================================
+
+  const fetchPullRequestChanges = async (
+    prNumber,
+    projectId = selectedProject
+  ) => {
+    if (!accessToken || !projectId || !prNumber) {
+      return;
+    }
+
+    try {
+      setLoadingChanges(true);
+      setChangesError("");
+      setChangedFiles([]);
+      setPrDiff("");
+
+      const [filesResponse, diffResponse] =
+        await Promise.all([
+          fetch(
+            `http://127.0.0.1:8000/api/github/projects/${projectId}/pull-requests/${prNumber}/files`,
+            {
+              method: "GET",
+              headers: getHeaders(),
+            }
+          ),
+          fetch(
+            `http://127.0.0.1:8000/api/github/projects/${projectId}/pull-requests/${prNumber}/diff`,
+            {
+              method: "GET",
+              headers: getHeaders(),
+            }
+          ),
+        ]);
+
+      const filesData = await filesResponse.json();
+      const diffData = await diffResponse.json();
+
+      if (!filesResponse.ok) {
+        throw new Error(
+          filesData.detail || "Failed to load changed files."
+        );
+      }
+
+      if (!diffResponse.ok) {
+        throw new Error(
+          diffData.detail || "Failed to load pull request diff."
+        );
+      }
+
+      setChangedFiles(
+        Array.isArray(filesData.files)
+          ? filesData.files
+          : []
+      );
+
+      setPrDiff(
+        typeof diffData.diff === "string"
+          ? diffData.diff
+          : ""
+      );
+    } catch (error) {
+      console.error("Fetch PR changes error:", error);
+
+      setChangesError(
+        error.message ||
+          "Unable to load pull request changes."
+      );
+    } finally {
+      setLoadingChanges(false);
+    }
+  };
+
+  // ============================================================
+  // RUN AI REVIEW
+  // ============================================================
+
+  const runAIReview = async (prNumber) => {
+    if (!accessToken || !selectedProject || !prNumber) {
+      return;
+    }
+
+    try {
+      setRunningAIReview(true);
+      setAIReviewError("");
+      setAIReview(null);
+
+      const response = await fetch(
+        `http://127.0.0.1:8000/api/projects/${selectedProject}/ai-reviews/run/${prNumber}`,
+        {
+          method: "POST",
           headers: {
             Accept: "application/json",
             Authorization: `Bearer ${accessToken}`,
@@ -119,630 +382,1171 @@ function PullRequests() {
         }
       );
 
+      const data = await response.json();
 
-      const prData =
-        await prResponse.json();
-
-
-      if (!prResponse.ok) {
-
+      if (!response.ok) {
         throw new Error(
-          prData.detail ||
-          "Failed to load pull requests."
+          data.detail || "Failed to run AI review."
         );
-
       }
 
-
-      // ========================================================
-      // FETCH PROJECTS
-      // ========================================================
-
-      const projectsResponse =
-        await fetch(
-          "http://127.0.0.1:8000/api/projects",
-          {
-            method: "GET",
-
-            headers: {
-              Accept: "application/json",
-              Authorization: `Bearer ${accessToken}`,
-            },
-          }
-        );
-
-
-      const projectsData =
-        await projectsResponse.json();
-
-
-      if (!projectsResponse.ok) {
-
-        throw new Error(
-          projectsData.detail ||
-          "Failed to load projects."
-        );
-
-      }
-
-
-      // ========================================================
-      // STORE DATA
-      // ========================================================
-
-      setPullRequests(prData);
-
-      setProjects(projectsData);
-
-
-      // ========================================================
-      // DEFAULT PROJECT
-      // ========================================================
-
-      if (
-        projectsData.length > 0 &&
-        !selectedProject
-      ) {
-
-        setSelectedProject(
-          projectsData[0].id
-        );
-
-      }
-
+      setAIReview(data);
     } catch (error) {
+      console.error("AI review error:", error);
 
-      console.error(
-        "Pull Requests page error:",
-        error
+      setAIReviewError(
+        error.message || "Unable to run AI review."
       );
-
-
-      setError(
-        error.message ||
-        "Unable to load pull requests."
-      );
-
     } finally {
-
-      setLoading(false);
-
+      setRunningAIReview(false);
     }
   };
 
+  // ============================================================
+  // OPEN MERGE / CLOSE CONFIRMATION
+  // ============================================================
+
+  const openPRActionConfirmation = (action) => {
+    setPRAction(action);
+    setPRActionError("");
+    setShowPRActionModal(true);
+  };
+
+  const closePRActionConfirmation = () => {
+    if (processingPRAction) {
+      return;
+    }
+
+    setShowPRActionModal(false);
+    setPRAction(null);
+    setPRActionError("");
+  };
+
+  // ============================================================
+  // EXECUTE MERGE / CLOSE ACTION
+  // ============================================================
+
+  const executePRAction = async () => {
+    if (
+      !accessToken ||
+      !selectedProject ||
+      !selectedPR ||
+      !prAction
+    ) {
+      return;
+    }
+
+    try {
+      setProcessingPRAction(true);
+      setPRActionError("");
+
+      const endpoint =
+        prAction === "merge"
+          ? `http://127.0.0.1:8000/api/github/projects/${selectedProject}/pull-requests/${selectedPR.number}/merge`
+          : `http://127.0.0.1:8000/api/github/projects/${selectedProject}/pull-requests/${selectedPR.number}/close`;
+
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: getHeaders(),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.detail ||
+            `Failed to ${prAction} pull request.`
+        );
+      }
+
+      // Close confirmation modal immediately after GitHub accepts
+      // the operation.
+      setShowPRActionModal(false);
+      setPRAction(null);
+
+      // GitHub is the source of truth. Re-fetch both the list and
+      // the selected PR so the UI immediately moves the PR to
+      // MERGED or CLOSED.
+      await fetchGithubPullRequests(selectedProject);
+      await fetchPullRequestDetails(selectedPR.number);
+    } catch (error) {
+      console.error(
+        `GitHub PR ${prAction} error:`,
+        error
+      );
+
+      setPRActionError(
+        error.message ||
+          `Unable to ${prAction} pull request.`
+      );
+    } finally {
+      setProcessingPRAction(false);
+    }
+  };
+
+  // ============================================================
+  // TOGGLE FILE PATCH
+  // ============================================================
+
+  const toggleFile = (filename) => {
+    setExpandedFiles((previous) => ({
+      ...previous,
+      [filename]: !previous[filename],
+    }));
+  };
+
+  // ============================================================
+  // SELECT PR
+  // ============================================================
+
+  const handleSelectPR = async (pullRequest) => {
+    setSelectedPR(null);
+    setChangedFiles([]);
+    setPrDiff("");
+    setExpandedFiles({});
+    setChangesError("");
+    setAIReview(null);
+    setAIReviewError("");
+
+    await fetchPullRequestDetails(
+      pullRequest.number
+    );
+
+    await fetchPullRequestChanges(
+      pullRequest.number
+    );
+  };
+
+  // ============================================================
+  // CLOSE PR DETAILS
+  // ============================================================
+
+  const closePRDetails = () => {
+    setSelectedPR(null);
+    setPrDetailsError("");
+    setChangedFiles([]);
+    setPrDiff("");
+    setChangesError("");
+    setExpandedFiles({});
+    setAIReview(null);
+    setAIReviewError("");
+  };
 
   // ============================================================
   // INITIAL LOAD
   // ============================================================
 
   useEffect(() => {
-
-    fetchData();
-
+    fetchProjects();
   }, [accessToken]);
 
-
   // ============================================================
-  // GET PROJECT NAME
+  // LOAD PRs WHEN PROJECT CHANGES
   // ============================================================
 
-  const getProjectName = (projectId) => {
+  useEffect(() => {
+    if (selectedProject) {
+      setSelectedPR(null);
 
-    const project =
-      projects.find(
-        (item) =>
-          item.id === projectId
+      fetchGithubPullRequests(
+        selectedProject
       );
+    }
+  }, [
+    selectedProject,
+    accessToken,
+  ]);
 
+  // ============================================================
+  // SELECTED PROJECT
+  // ============================================================
 
-    return (
-      project?.name ||
-      "Unknown Project"
+  const currentProject = useMemo(() => {
+    return projects.find(
+      (project) =>
+        project.id === selectedProject
     );
+  }, [
+    projects,
+    selectedProject,
+  ]);
+
+  // ============================================================
+  // PR STATUS
+  //
+  // GitHub is the source of truth:
+  //
+  // merged === true
+  //      -> MERGED
+  //
+  // state === "closed"
+  //      -> CLOSED
+  //
+  // state === "open"
+  //      -> OPEN
+  // ============================================================
+
+  const getPRStatus = (pullRequest) => {
+    if (pullRequest.merged === true) {
+      return "merged";
+    }
+
+    if (
+      pullRequest.state === "closed"
+    ) {
+      return "closed";
+    }
+
+    return "open";
   };
 
+  // ============================================================
+  // STATUS STYLES
+  // ============================================================
+
+  const getStatusStyles = (status) => {
+    switch (status) {
+      case "merged":
+        return "bg-purple-500/10 text-purple-400";
+
+      case "closed":
+        return "bg-red-500/10 text-red-400";
+
+      case "open":
+      default:
+        return "bg-emerald-500/10 text-emerald-400";
+    }
+  };
 
   // ============================================================
   // FILTER PULL REQUESTS
   // ============================================================
 
-  const filteredPullRequests =
-    useMemo(() => {
+  const filteredPullRequests = useMemo(() => {
+    const searchValue =
+      search.toLowerCase().trim();
 
-      const searchValue =
-        search.toLowerCase().trim();
-
-
-      return pullRequests.filter(
-        (pullRequest) => {
-
-          const projectName =
-            getProjectName(
-              pullRequest.project_id
-            ).toLowerCase();
-
-
-          // Search title
-          const matchesTitle =
-            pullRequest.title
-              .toLowerCase()
-              .includes(searchValue);
-
-
-          // Search project
-          const matchesProject =
-            projectName.includes(
-              searchValue
-            );
-
-
-          // Search result
-          const matchesSearch =
-            matchesTitle ||
-            matchesProject;
-
-
-          // Status result
-          const matchesStatus =
-            statusFilter === "all" ||
-            pullRequest.status ===
-              statusFilter;
-
-
-          return (
-            matchesSearch &&
-            matchesStatus
+    return pullRequests.filter(
+      (pullRequest) => {
+        const status =
+          getPRStatus(
+            pullRequest
           );
 
+        const title =
+          (
+            pullRequest.title || ""
+          ).toLowerCase();
+
+        const author =
+          (
+            pullRequest.author || ""
+          ).toLowerCase();
+
+        const branch =
+          (
+            pullRequest.head_branch ||
+            ""
+          ).toLowerCase();
+
+        const matchesSearch =
+          !searchValue ||
+          title.includes(
+            searchValue
+          ) ||
+          author.includes(
+            searchValue
+          ) ||
+          branch.includes(
+            searchValue
+          );
+
+        const matchesStatus =
+          statusFilter === "all" ||
+          status === statusFilter;
+
+        return (
+          matchesSearch &&
+          matchesStatus
+        );
+      }
+    );
+  }, [
+    pullRequests,
+    search,
+    statusFilter,
+  ]);
+
+  // ============================================================
+  // GROUP PRs BY STATUS
+  // ============================================================
+
+  const openPullRequests = useMemo(() => {
+    return filteredPullRequests.filter(
+      (pullRequest) =>
+        getPRStatus(
+          pullRequest
+        ) === "open"
+    );
+  }, [filteredPullRequests]);
+
+  const mergedPullRequests = useMemo(() => {
+    return filteredPullRequests.filter(
+      (pullRequest) =>
+        getPRStatus(
+          pullRequest
+        ) === "merged"
+    );
+  }, [filteredPullRequests]);
+
+  const closedPullRequests = useMemo(() => {
+    return filteredPullRequests.filter(
+      (pullRequest) =>
+        getPRStatus(
+          pullRequest
+        ) === "closed"
+    );
+  }, [filteredPullRequests]);
+
+  // ============================================================
+  // FORMAT DATE
+  // ============================================================
+
+  const formatDate = (date) => {
+    if (!date) {
+      return "Unknown date";
+    }
+
+    try {
+      return new Date(
+        date
+      ).toLocaleDateString(
+        undefined,
+        {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
         }
       );
-
-    }, [
-      pullRequests,
-      projects,
-      search,
-      statusFilter,
-    ]);
-
-
-  // ============================================================
-  // CREATE PULL REQUEST
-  // ============================================================
-
-  const handleCreatePR = async (event) => {
-
-    event.preventDefault();
-
-    setCreateError("");
-
-
-    // ----------------------------------------------------------
-    // Validate title
-    // ----------------------------------------------------------
-
-    if (!prTitle.trim()) {
-
-      setCreateError(
-        "Pull Request title is required."
-      );
-
-      return;
-    }
-
-
-    // ----------------------------------------------------------
-    // Validate project
-    // ----------------------------------------------------------
-
-    if (!selectedProject) {
-
-      setCreateError(
-        "Please select a project."
-      );
-
-      return;
-    }
-
-
-    try {
-
-      setCreating(true);
-
-
-      // ========================================================
-      // CREATE API REQUEST
-      // ========================================================
-
-      const response =
-        await fetch(
-          `http://127.0.0.1:8000/api/projects/${selectedProject}/pull-requests`,
-          {
-            method: "POST",
-
-            headers: {
-              "Content-Type":
-                "application/json",
-
-              Accept:
-                "application/json",
-
-              Authorization:
-                `Bearer ${accessToken}`,
-            },
-
-            body: JSON.stringify({
-
-              title:
-                prTitle.trim(),
-
-              status:
-                prStatus,
-
-            }),
-          }
-        );
-
-
-      const data =
-        await response.json();
-
-
-      if (!response.ok) {
-
-        throw new Error(
-          data.detail ||
-          "Failed to create Pull Request."
-        );
-
-      }
-
-
-      // ========================================================
-      // RESET FORM
-      // ========================================================
-
-      setPrTitle("");
-
-      setPrStatus("open");
-
-      setCreateError("");
-
-
-      // Close modal
-      setShowCreatePR(false);
-
-
-      // Refresh data
-      await fetchData();
-
-    } catch (error) {
-
-      console.error(
-        "Create PR error:",
-        error
-      );
-
-
-      setCreateError(
-        error.message ||
-        "Unable to create Pull Request."
-      );
-
-    } finally {
-
-      setCreating(false);
-
+    } catch {
+      return "Unknown date";
     }
   };
 
-
   // ============================================================
-  // OPEN EDIT MODAL
-  // ============================================================
-
-  const handleOpenEdit = (pullRequest) => {
-
-    setEditingPR({
-      ...pullRequest,
-    });
-
-
-    setUpdateError("");
-
-    setShowEditPR(true);
-
-  };
-
-
-  // ============================================================
-  // UPDATE PULL REQUEST
+  // LOADING PROJECTS
   // ============================================================
 
-  const handleUpdatePR = async (event) => {
-
-    event.preventDefault();
-
-
-    if (!editingPR) {
-      return;
-    }
-
-
-    setUpdateError("");
-
-
-    // Validate title
-    if (!editingPR.title.trim()) {
-
-      setUpdateError(
-        "Pull Request title is required."
-      );
-
-      return;
-    }
-
-
-    try {
-
-      setUpdating(true);
-
-
-      // ========================================================
-      // PATCH REQUEST
-      // ========================================================
-
-      const response =
-        await fetch(
-          `http://127.0.0.1:8000/api/projects/pull-requests/${editingPR.id}`,
-          {
-            method: "PATCH",
-
-            headers: {
-              "Content-Type":
-                "application/json",
-
-              Accept:
-                "application/json",
-
-              Authorization:
-                `Bearer ${accessToken}`,
-            },
-
-            body: JSON.stringify({
-
-              title:
-                editingPR.title.trim(),
-
-              status:
-                editingPR.status,
-
-            }),
-          }
-        );
-
-
-      const data =
-        await response.json();
-
-
-      if (!response.ok) {
-
-        throw new Error(
-          data.detail ||
-          "Failed to update Pull Request."
-        );
-
-      }
-
-
-      // ========================================================
-      // UPDATE UI
-      // ========================================================
-
-      setPullRequests(
-        (currentPRs) =>
-          currentPRs.map(
-            (pullRequest) =>
-              pullRequest.id === data.id
-                ? data
-                : pullRequest
-          )
-      );
-
-
-      // Close modal
-      setShowEditPR(false);
-
-      setEditingPR(null);
-
-      setUpdateError("");
-
-    } catch (error) {
-
-      console.error(
-        "Update PR error:",
-        error
-      );
-
-
-      setUpdateError(
-        error.message ||
-        "Unable to update Pull Request."
-      );
-
-    } finally {
-
-      setUpdating(false);
-
-    }
-  };
-
-
-  // ============================================================
-  // DELETE PULL REQUEST
-  // ============================================================
-
-  const handleDeletePR = async (pullRequestId) => {
-
-    const confirmed =
-      window.confirm(
-        "Are you sure you want to delete this Pull Request?"
-      );
-
-
-    if (!confirmed) {
-      return;
-    }
-
-
-    try {
-
-      const response =
-        await fetch(
-          `http://127.0.0.1:8000/api/projects/pull-requests/${pullRequestId}`,
-          {
-            method: "DELETE",
-
-            headers: {
-              Accept:
-                "application/json",
-
-              Authorization:
-                `Bearer ${accessToken}`,
-            },
-          }
-        );
-
-
-      if (!response.ok) {
-
-        let data = {};
-
-
-        try {
-
-          data =
-            await response.json();
-
-        } catch {
-
-          // DELETE 204 has no body
-
-        }
-
-
-        throw new Error(
-          data.detail ||
-          "Failed to delete Pull Request."
-        );
-
-      }
-
-
-      // ========================================================
-      // REMOVE FROM UI
-      // ========================================================
-
-      setPullRequests(
-        (currentPRs) =>
-          currentPRs.filter(
-            (pullRequest) =>
-              pullRequest.id !==
-              pullRequestId
-          )
-      );
-
-    } catch (error) {
-
-      console.error(
-        "Delete PR error:",
-        error
-      );
-
-
-      alert(
-        error.message ||
-        "Unable to delete Pull Request."
-      );
-
-    }
-
-  };
-
-
-  // ============================================================
-  // STATUS BADGE
-  // ============================================================
-
-  const getStatusStyles = (status) => {
-
-    switch (status) {
-
-      case "merged":
-
-        return (
-          "bg-purple-500/10 " +
-          "text-purple-400"
-        );
-
-
-      case "closed":
-
-        return (
-          "bg-red-500/10 " +
-          "text-red-400"
-        );
-
-
-      case "open":
-
-      default:
-
-        return (
-          "bg-emerald-500/10 " +
-          "text-emerald-400"
-        );
-
-    }
-
-  };
-
-
-  // ============================================================
-  // LOADING UI
-  // ============================================================
-
-  if (loading) {
-
+  if (loadingProjects) {
     return (
-
       <div className="min-h-screen bg-[#07070a] text-white">
-
         <Sidebar />
 
-
         <main className="ml-64 min-h-screen p-8">
-
           <div className="mx-auto max-w-7xl">
 
             <div className="h-8 w-64 animate-pulse rounded bg-white/10" />
 
-            <div className="mt-3 h-5 w-80 animate-pulse rounded bg-white/5" />
+            <div className="mt-3 h-5 w-96 animate-pulse rounded bg-white/5" />
 
             <div className="mt-8 h-14 animate-pulse rounded-xl bg-[#111116]" />
 
             <div className="mt-5 space-y-3">
-
               {[1, 2, 3].map(
                 (item) => (
-
                   <div
                     key={item}
-                    className="h-24 animate-pulse rounded-xl bg-[#111116]"
+                    className="h-28 animate-pulse rounded-xl bg-[#111116]"
                   />
-
                 )
               )}
+            </div>
+
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // ============================================================
+  // PR DETAILS VIEW
+  // ============================================================
+
+  if (selectedPR) {
+    const status =
+      getPRStatus(selectedPR);
+
+    return (
+      <div className="min-h-screen bg-[#07070a] text-white">
+
+        <Sidebar />
+
+        <main className="ml-64 min-h-screen p-8">
+
+          <div className="mx-auto max-w-5xl">
+
+            {/* BACK */}
+
+            <button
+              type="button"
+              onClick={
+                closePRDetails
+              }
+              className="mb-6 flex items-center gap-2 text-sm text-gray-400 transition hover:text-white"
+            >
+              <ArrowLeft size={17} />
+              Back to Pull Requests
+            </button>
+
+            {/* PR DETAILS CARD */}
+
+            <div className="rounded-2xl border border-white/10 bg-[#111116]">
+
+              {/* HEADER */}
+
+              <div className="border-b border-white/10 p-6">
+
+                <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
+
+                  <div className="min-w-0">
+
+                    <div className="flex items-center gap-3">
+
+                      <GitPullRequest
+                        size={24}
+                        className="shrink-0 text-purple-400"
+                      />
+
+                      <span className="text-gray-500">
+                        #{selectedPR.number}
+                      </span>
+
+                      <h1 className="text-2xl font-bold">
+                        {selectedPR.title}
+                      </h1>
+
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap items-center gap-3">
+
+                      <span
+                        className={`rounded-full px-3 py-1 text-xs font-medium ${getStatusStyles(
+                          status
+                        )}`}
+                      >
+                        {status
+                          .charAt(0)
+                          .toUpperCase() +
+                          status.slice(1)}
+                      </span>
+
+                      {selectedPR.draft && (
+                        <span className="rounded-full bg-yellow-500/10 px-3 py-1 text-xs font-medium text-yellow-400">
+                          Draft
+                        </span>
+                      )}
+
+                    </div>
+
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={
+                      closePRDetails
+                    }
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-gray-500 transition hover:bg-white/5 hover:text-white"
+                  >
+                    <X size={19} />
+                  </button>
+
+                </div>
+
+              </div>
+
+              {/* PR METADATA */}
+
+              <div className="grid gap-4 border-b border-white/10 p-6 sm:grid-cols-2 lg:grid-cols-4">
+
+                <div>
+
+                  <p className="text-xs text-gray-500">
+                    Author
+                  </p>
+
+                  <div className="mt-2 flex items-center gap-2 text-sm text-gray-300">
+                    <User size={15} />
+
+                    {selectedPR.author ||
+                      "Unknown"}
+                  </div>
+
+                </div>
+
+                <div>
+
+                  <p className="text-xs text-gray-500">
+                    Branch
+                  </p>
+
+                  <div className="mt-2 flex items-center gap-2 text-sm text-gray-300">
+
+                    <GitBranch size={15} />
+
+                    <span className="truncate">
+                      {
+                        selectedPR.head_branch
+                      }
+                    </span>
+
+                  </div>
+
+                  <p className="ml-5 mt-1 text-xs text-gray-600">
+                    →{" "}
+                    {
+                      selectedPR.base_branch
+                    }
+                  </p>
+
+                </div>
+
+                <div>
+
+                  <p className="text-xs text-gray-500">
+                    Created
+                  </p>
+
+                  <div className="mt-2 flex items-center gap-2 text-sm text-gray-300">
+
+                    <Calendar size={15} />
+
+                    {formatDate(
+                      selectedPR.created_at
+                    )}
+
+                  </div>
+
+                </div>
+
+                <div>
+
+                  <p className="text-xs text-gray-500">
+                    Files changed
+                  </p>
+
+                  <div className="mt-2 flex items-center gap-2 text-sm text-gray-300">
+
+                    <FileCode2 size={15} />
+
+                    {selectedPR.changed_files ??
+                      "—"}
+
+                  </div>
+
+                </div>
+
+              </div>
+
+              {/* DESCRIPTION */}
+
+              <div className="border-b border-white/10 p-6">
+
+                <h2 className="mb-3 text-sm font-semibold text-gray-200">
+                  Description
+                </h2>
+
+                <div className="rounded-xl border border-white/10 bg-[#0b0b0f] p-5">
+
+                  {selectedPR.body ? (
+                    <p className="whitespace-pre-wrap text-sm leading-7 text-gray-400">
+                      {selectedPR.body}
+                    </p>
+                  ) : (
+                    <p className="text-sm italic text-gray-600">
+                      No description provided.
+                    </p>
+                  )}
+
+                </div>
+
+              </div>
+
+              {/* CODE CHANGES */}
+
+              <div className="border-b border-white/10 p-6">
+
+                <h2 className="mb-4 text-sm font-semibold text-gray-200">
+                  Code Changes
+                </h2>
+
+                <div className="grid gap-4 sm:grid-cols-3">
+
+                  <div className="rounded-xl border border-white/10 bg-[#0b0b0f] p-4">
+
+                    <p className="text-xs text-gray-500">
+                      Additions
+                    </p>
+
+                    <p className="mt-2 text-xl font-semibold text-emerald-400">
+                      +{selectedPR.additions ?? 0}
+                    </p>
+
+                  </div>
+
+                  <div className="rounded-xl border border-white/10 bg-[#0b0b0f] p-4">
+
+                    <p className="text-xs text-gray-500">
+                      Deletions
+                    </p>
+
+                    <p className="mt-2 text-xl font-semibold text-red-400">
+                      -{selectedPR.deletions ?? 0}
+                    </p>
+
+                  </div>
+
+                  <div className="rounded-xl border border-white/10 bg-[#0b0b0f] p-4">
+
+                    <p className="text-xs text-gray-500">
+                      Changed files
+                    </p>
+
+                    <p className="mt-2 text-xl font-semibold text-white">
+                      {selectedPR.changed_files ??
+                        0}
+                    </p>
+
+                  </div>
+
+                </div>
+
+              </div>
+
+              {/* ==================================================
+                  CHANGED FILES
+              ================================================== */}
+
+              <div className="border-b border-white/10 p-6">
+
+                <div className="mb-4 flex items-center justify-between">
+                  <div>
+                    <h2 className="text-sm font-semibold text-gray-200">
+                      Changed Files
+                    </h2>
+                    <p className="mt-1 text-xs text-gray-500">
+                      Files modified by this pull request
+                    </p>
+                  </div>
+
+                  {!loadingChanges && (
+                    <span className="rounded-full bg-white/5 px-3 py-1 text-xs text-gray-400">
+                      {changedFiles.length} file
+                      {changedFiles.length !== 1 ? "s" : ""}
+                    </span>
+                  )}
+                </div>
+
+                {loadingChanges && (
+                  <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-[#0b0b0f] p-5">
+                    <RefreshCw
+                      size={18}
+                      className="animate-spin text-purple-400"
+                    />
+                    <span className="text-sm text-gray-400">
+                      Loading changed files and code diff...
+                    </span>
+                  </div>
+                )}
+
+                {changesError && !loadingChanges && (
+                  <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-4 text-sm text-red-400">
+                    {changesError}
+                  </div>
+                )}
+
+                {!loadingChanges &&
+                  !changesError &&
+                  changedFiles.length === 0 && (
+                    <div className="rounded-xl border border-white/10 bg-[#0b0b0f] p-5 text-sm text-gray-500">
+                      No changed files were returned by GitHub.
+                    </div>
+                  )}
+
+                {!loadingChanges &&
+                  !changesError &&
+                  changedFiles.length > 0 && (
+                    <div className="space-y-2">
+                      {changedFiles.map((file) => {
+                        const isExpanded =
+                          Boolean(
+                            expandedFiles[file.filename]
+                          );
+
+                        return (
+                          <div
+                            key={file.filename}
+                            className="overflow-hidden rounded-xl border border-white/10 bg-[#0b0b0f]"
+                          >
+                            <button
+                              type="button"
+                              onClick={() =>
+                                toggleFile(
+                                  file.filename
+                                )
+                              }
+                              className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left transition hover:bg-white/[0.025]"
+                            >
+                              <div className="flex min-w-0 items-center gap-3">
+                                <FileCode2
+                                  size={17}
+                                  className="shrink-0 text-purple-400"
+                                />
+                                <span className="truncate text-sm text-gray-300">
+                                  {file.filename}
+                                </span>
+                              </div>
+
+                              <div className="flex shrink-0 items-center gap-3">
+                                <span className="text-xs text-emerald-400">
+                                  +{file.additions ?? 0}
+                                </span>
+
+                                <span className="text-xs text-red-400">
+                                  -{file.deletions ?? 0}
+                                </span>
+
+                                <span className="text-xs text-gray-600">
+                                  {file.status}
+                                </span>
+
+                                <span className="text-xs text-gray-500">
+                                  {isExpanded
+                                    ? "Hide"
+                                    : "View"}
+                                </span>
+                              </div>
+                            </button>
+
+                            {isExpanded &&
+                              file.patch && (
+                                <pre className="max-h-[500px] overflow-auto border-t border-white/10 bg-[#07070a] p-4 text-xs leading-6 text-gray-400">
+                                  <code>{file.patch}</code>
+                                </pre>
+                              )}
+
+                            {isExpanded &&
+                              !file.patch && (
+                                <div className="border-t border-white/10 p-4 text-xs text-gray-600">
+                                  GitHub did not provide a patch for this file.
+                                </div>
+                              )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+              </div>
+
+              {/* ==================================================
+                  ACTUAL PULL REQUEST DIFF
+              ================================================== */}
+
+              <div className="border-b border-white/10 p-6">
+
+                <div className="mb-4">
+                  <h2 className="text-sm font-semibold text-gray-200">
+                    Code Diff
+                  </h2>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Complete GitHub diff for this pull request
+                  </p>
+                </div>
+
+                {loadingChanges && (
+                  <div className="rounded-xl border border-white/10 bg-[#0b0b0f] p-5 text-sm text-gray-500">
+                    Loading diff...
+                  </div>
+                )}
+
+                {!loadingChanges &&
+                  !changesError &&
+                  prDiff && (
+                    <div className="overflow-hidden rounded-xl border border-white/10 bg-[#07070a]">
+                      <div className="flex items-center justify-between border-b border-white/10 bg-[#0b0b0f] px-4 py-3">
+                        <span className="text-xs font-medium text-gray-400">
+                          GitHub Pull Request Diff
+                        </span>
+
+                        <span className="text-xs text-gray-600">
+                          {prDiff.split("\n").length} lines
+                        </span>
+                      </div>
+
+                      <pre className="max-h-[650px] overflow-auto p-5 text-xs leading-6 text-gray-400">
+                        <code>{prDiff}</code>
+                      </pre>
+                    </div>
+                  )}
+
+                {!loadingChanges &&
+                  !changesError &&
+                  !prDiff && (
+                    <div className="rounded-xl border border-white/10 bg-[#0b0b0f] p-5 text-sm text-gray-500">
+                      No diff was returned by GitHub.
+                    </div>
+                  )}
+              </div>
+
+              {/* MERGED INFORMATION */}
+
+              {status === "merged" && (
+                <div className="border-b border-white/10 p-6">
+
+                  <div className="flex items-center gap-3 rounded-xl border border-purple-500/20 bg-purple-500/5 p-4">
+
+                    <GitMerge
+                      size={20}
+                      className="text-purple-400"
+                    />
+
+                    <div>
+
+                      <p className="text-sm font-medium text-purple-300">
+                        Pull request merged
+                      </p>
+
+                      {selectedPR.merged_at && (
+                        <p className="mt-1 text-xs text-gray-500">
+                          Merged on{" "}
+                          {formatDate(
+                            selectedPR.merged_at
+                          )}
+                        </p>
+                      )}
+
+                    </div>
+
+                  </div>
+
+                </div>
+              )}
+
+              {/* CLOSED INFORMATION */}
+
+              {status === "closed" && (
+                <div className="border-b border-white/10 p-6">
+
+                  <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-4">
+
+                    <p className="text-sm font-medium text-red-300">
+                      Pull request closed
+                    </p>
+
+                    <p className="mt-1 text-xs text-gray-500">
+                      This pull request was closed without being merged.
+                    </p>
+
+                  </div>
+
+                </div>
+              )}
+
+              {/* ==================================================
+                  AI REVIEW RESULT
+              ================================================== */}
+
+              {aiReview && (
+                <div className="border-b border-white/10 p-6">
+
+                  <div className="mb-5 flex items-center justify-between gap-4">
+
+                    <div>
+                      <h2 className="text-sm font-semibold text-gray-200">
+                        AI Code Review
+                      </h2>
+
+                      <p className="mt-1 text-xs text-gray-500">
+                        Automated review generated from the GitHub pull request changes.
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl border border-purple-500/20 bg-purple-500/5 px-4 py-3 text-center">
+
+                      <p className="text-xs text-gray-500">
+                        Score
+                      </p>
+
+                      <p className="mt-1 text-2xl font-bold text-purple-400">
+                        {aiReview.score ?? "—"}
+                        {aiReview.score !== null &&
+                        aiReview.score !== undefined
+                          ? "/100"
+                          : ""}
+                      </p>
+
+                    </div>
+
+                  </div>
+
+                  <div className="rounded-xl border border-white/10 bg-[#0b0b0f] p-5">
+
+                    <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                      Summary
+                    </p>
+
+                    <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-gray-300">
+                      {aiReview.summary ||
+                        "No AI review summary was returned."}
+                    </p>
+
+                  </div>
+
+                  <div className="mt-5">
+
+                    <div className="mb-3 flex items-center justify-between">
+
+                      <div>
+                        <h3 className="text-sm font-semibold text-gray-200">
+                          Findings
+                        </h3>
+
+                        <p className="mt-1 text-xs text-gray-500">
+                          Issues identified by the AI reviewer.
+                        </p>
+                      </div>
+
+                      <span className="rounded-full bg-white/5 px-3 py-1 text-xs text-gray-400">
+                        {(aiReview.findings || []).length} finding
+                        {(aiReview.findings || []).length !== 1
+                          ? "s"
+                          : ""}
+                      </span>
+
+                    </div>
+
+                    {(aiReview.findings || []).length === 0 ? (
+
+                      <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-5">
+
+                        <p className="text-sm font-medium text-emerald-300">
+                          No issues found
+                        </p>
+
+                        <p className="mt-1 text-xs text-gray-500">
+                          The AI reviewer did not identify any supported issues in the submitted changes.
+                        </p>
+
+                      </div>
+
+                    ) : (
+
+                      <div className="space-y-3">
+
+                        {(aiReview.findings || []).map(
+                          (finding, index) => {
+
+                            const severity = (
+                              finding.severity || "medium"
+                            ).toLowerCase();
+
+                            const severityClass =
+                              severity === "critical"
+                                ? "border-red-500/30 bg-red-500/5 text-red-300"
+                                : severity === "high"
+                                ? "border-orange-500/30 bg-orange-500/5 text-orange-300"
+                                : severity === "low"
+                                ? "border-blue-500/30 bg-blue-500/5 text-blue-300"
+                                : "border-yellow-500/30 bg-yellow-500/5 text-yellow-300";
+
+                            return (
+                              <div
+                                key={
+                                  finding.id ||
+                                  `${finding.filename}-${index}`
+                                }
+                                className="rounded-xl border border-white/10 bg-[#0b0b0f] p-5"
+                              >
+
+                                <div className="flex flex-wrap items-center gap-2">
+
+                                  <span
+                                    className={`rounded-full border px-2.5 py-1 text-xs font-medium uppercase ${severityClass}`}
+                                  >
+                                    {severity}
+                                  </span>
+
+                                  {finding.filename && (
+                                    <span className="rounded-full bg-white/5 px-2.5 py-1 text-xs text-gray-400">
+                                      {finding.filename}
+                                    </span>
+                                  )}
+
+                                  {finding.line_reference && (
+                                    <span className="rounded-full bg-white/5 px-2.5 py-1 text-xs text-gray-500">
+                                      {finding.line_reference}
+                                    </span>
+                                  )}
+
+                                </div>
+
+                                <h4 className="mt-4 text-sm font-semibold text-white">
+                                  {finding.issue ||
+                                    "Review finding"}
+                                </h4>
+
+                                {finding.explanation && (
+                                  <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-gray-400">
+                                    {finding.explanation}
+                                  </p>
+                                )}
+
+                                {finding.recommendation && (
+                                  <div className="mt-4 rounded-lg border border-purple-500/10 bg-purple-500/5 p-4">
+
+                                    <p className="text-xs font-medium text-purple-300">
+                                      Recommendation
+                                    </p>
+
+                                    <p className="mt-1 text-sm leading-6 text-gray-400">
+                                      {finding.recommendation}
+                                    </p>
+
+                                  </div>
+                                )}
+
+                              </div>
+                            );
+                          }
+                        )}
+
+                      </div>
+
+                    )}
+
+                  </div>
+
+                </div>
+              )}
+
+              {aiReviewError && (
+                <div className="border-b border-white/10 p-6">
+
+                  <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-4">
+
+                    <p className="text-sm font-medium text-red-300">
+                      AI review failed
+                    </p>
+
+                    <p className="mt-1 text-sm text-red-400">
+                      {aiReviewError}
+                    </p>
+
+                  </div>
+
+                </div>
+              )}
+
+              {/* ==================================================
+                  PR ACTION ERROR
+              ================================================== */}
+
+              {prActionError && (
+                <div className="border-b border-white/10 p-6">
+                  <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-4">
+                    <p className="text-sm font-medium text-red-300">
+                      GitHub action failed
+                    </p>
+                    <p className="mt-1 text-sm text-red-400">
+                      {prActionError}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* ACTIONS */}
+
+              <div className="flex flex-col gap-3 p-6 sm:flex-row sm:items-center sm:justify-between">
+
+                <a
+                  href={
+                    selectedPR.html_url
+                  }
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center justify-center gap-2 rounded-lg border border-white/10 px-5 py-3 text-sm font-medium text-gray-300 transition hover:bg-white/5 hover:text-white"
+                >
+                  <ExternalLink size={16} />
+                  Open on GitHub
+                </a>
+
+                {/* OPEN-PR ACTIONS */}
+
+                {status === "open" && (
+                  <div className="flex flex-col gap-3 sm:flex-row">
+
+                    {/* AI REVIEW */}
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        runAIReview(selectedPR.number)
+                      }
+                      disabled={
+                        runningAIReview ||
+                        processingPRAction
+                      }
+                      className="flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-purple-600 to-purple-500 px-6 py-3 text-sm font-medium text-white transition hover:from-purple-500 hover:to-purple-400 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {runningAIReview && (
+                        <RefreshCw
+                          size={16}
+                          className="animate-spin"
+                        />
+                      )}
+
+                      {runningAIReview
+                        ? "Reviewing..."
+                        : "Review with AI"}
+                    </button>
+
+                    {/* MERGE */}
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        openPRActionConfirmation("merge")
+                      }
+                      disabled={
+                        runningAIReview ||
+                        processingPRAction
+                      }
+                      className="flex items-center justify-center gap-2 rounded-lg border border-purple-500/30 bg-purple-500/10 px-6 py-3 text-sm font-medium text-purple-300 transition hover:bg-purple-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <GitMerge size={16} />
+                      Merge PR
+                    </button>
+
+                    {/* CLOSE */}
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        openPRActionConfirmation("close")
+                      }
+                      disabled={
+                        runningAIReview ||
+                        processingPRAction
+                      }
+                      className="flex items-center justify-center gap-2 rounded-lg border border-red-500/20 bg-red-500/5 px-6 py-3 text-sm font-medium text-red-300 transition hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <X size={16} />
+                      Close PR
+                    </button>
+
+                  </div>
+                )}
+
+              </div>
 
             </div>
 
@@ -750,43 +1554,139 @@ function PullRequests() {
 
         </main>
 
+        {/* ========================================================
+            MERGE / CLOSE CONFIRMATION MODAL
+        ======================================================== */}
+
+        {showPRActionModal && selectedPR && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
+            <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#111116] shadow-2xl">
+
+              <div className="flex items-start justify-between border-b border-white/10 p-6">
+                <div>
+                  <h2 className="text-lg font-semibold text-white">
+                    {prAction === "merge"
+                      ? "Merge Pull Request?"
+                      : "Close Pull Request?"}
+                  </h2>
+
+                  <p className="mt-2 text-sm text-gray-500">
+                    #{selectedPR.number} {selectedPR.title}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={closePRActionConfirmation}
+                  disabled={processingPRAction}
+                  className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 transition hover:bg-white/5 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                  aria-label="Close confirmation"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="p-6">
+
+                {prAction === "merge" ? (
+                  <div className="rounded-xl border border-purple-500/20 bg-purple-500/5 p-4">
+                    <p className="text-sm leading-6 text-gray-300">
+                      This will perform the real GitHub merge. The pull
+                      request will be merged into{" "}
+                      <span className="font-medium text-white">
+                        {selectedPR.base_branch}
+                      </span>.
+                    </p>
+                    <p className="mt-3 text-xs leading-5 text-gray-500">
+                      Make sure the AI review and GitHub checks are
+                      satisfactory before continuing.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-4">
+                    <p className="text-sm leading-6 text-gray-300">
+                      This will close the real GitHub pull request
+                      without merging it.
+                    </p>
+                    <p className="mt-3 text-xs leading-5 text-gray-500">
+                      The PR will remain visible in Velocyte under
+                      Closed Pull Requests.
+                    </p>
+                  </div>
+                )}
+
+                {prActionError && (
+                  <div className="mt-4 rounded-lg border border-red-500/20 bg-red-500/5 p-3 text-sm text-red-400">
+                    {prActionError}
+                  </div>
+                )}
+
+                <div className="mt-6 flex justify-end gap-3">
+
+                  <button
+                    type="button"
+                    onClick={closePRActionConfirmation}
+                    disabled={processingPRAction}
+                    className="rounded-lg border border-white/10 px-5 py-2.5 text-sm font-medium text-gray-300 transition hover:bg-white/5 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={executePRAction}
+                    disabled={processingPRAction}
+                    className={
+                      prAction === "merge"
+                        ? "flex items-center gap-2 rounded-lg bg-purple-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-purple-500 disabled:cursor-not-allowed disabled:opacity-50"
+                        : "flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-50"
+                    }
+                  >
+                    {processingPRAction && (
+                      <RefreshCw
+                        size={16}
+                        className="animate-spin"
+                      />
+                    )}
+
+                    {processingPRAction
+                      ? prAction === "merge"
+                        ? "Merging..."
+                        : "Closing..."
+                      : prAction === "merge"
+                      ? "Confirm Merge"
+                      : "Confirm Close"}
+                  </button>
+
+                </div>
+
+              </div>
+            </div>
+          </div>
+        )}
+
       </div>
-
     );
-
   }
 
-
   // ============================================================
-  // MAIN UI
+  // MAIN PR LIST
   // ============================================================
 
   return (
-
     <div className="min-h-screen bg-[#07070a] text-white">
 
-
-      {/* ======================================================
-          SIDEBAR
-      ====================================================== */}
-
       <Sidebar />
-
-
-      {/* ======================================================
-          MAIN CONTENT
-      ====================================================== */}
 
       <main className="ml-64 min-h-screen p-8">
 
         <div className="mx-auto max-w-7xl">
 
+          {/* ====================================================
+              HEADER
+          ==================================================== */}
 
-          {/* ==================================================
-              PAGE HEADER
-          ================================================== */}
-
-          <div className="mb-8 flex items-center justify-between">
+          <div className="mb-8 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
 
             <div>
 
@@ -794,837 +1694,631 @@ function PullRequests() {
                 Pull Requests
               </h1>
 
-
               <p className="mt-2 text-gray-400">
-                Manage and review your project's pull requests.
+                View and review real GitHub pull requests.
               </p>
 
             </div>
 
+            {/* PROJECT SELECTOR */}
 
-            {/* NEW PR */}
+            <div className="flex items-center gap-3">
 
-            <button
-              type="button"
-              onClick={() => {
-
-                setCreateError("");
-
-                setShowCreatePR(true);
-
-              }}
-              className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-purple-600 to-violet-500 px-5 py-3 font-semibold text-white shadow-lg shadow-purple-900/20 transition hover:scale-[1.02]"
-            >
-
-              <Plus size={19} />
-
-              New Pull Request
-
-            </button>
-
-          </div>
-
-
-          {/* ==================================================
-              SEARCH + FILTER
-          ================================================== */}
-
-          <div className="mb-6 flex flex-col gap-4 md:flex-row">
-
-
-            {/* SEARCH */}
-
-            <div className="relative max-w-md flex-1">
-
-              <Search
+              <FolderKanban
                 size={18}
-                className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500"
+                className="text-purple-400"
               />
 
-
-              <input
-                type="text"
-                value={search}
+              <select
+                value={selectedProject}
                 onChange={(event) =>
-                  setSearch(
+                  setSelectedProject(
                     event.target.value
                   )
                 }
-                placeholder="Search pull requests..."
-                className="w-full rounded-lg border border-white/10 bg-[#111116] py-3 pl-11 pr-4 text-sm text-white outline-none transition placeholder:text-gray-600 focus:border-purple-500"
-              />
+                className="min-w-[260px] rounded-lg border border-white/10 bg-[#111116] px-4 py-3 text-sm text-white outline-none focus:border-purple-500"
+              >
 
-            </div>
+                <option value="">
+                  Select GitHub project
+                </option>
 
-
-            {/* STATUS FILTER */}
-
-            <select
-              value={statusFilter}
-              onChange={(event) =>
-                setStatusFilter(
-                  event.target.value
-                )
-              }
-              className="rounded-lg border border-white/10 bg-[#111116] px-4 py-3 text-sm text-gray-300 outline-none focus:border-purple-500"
-            >
-
-              <option value="all">
-                All statuses
-              </option>
-
-              <option value="open">
-                Open
-              </option>
-
-              <option value="closed">
-                Closed
-              </option>
-
-              <option value="merged">
-                Merged
-              </option>
-
-            </select>
-
-          </div>
-
-
-          {/* ==================================================
-              PAGE ERROR
-          ================================================== */}
-
-          {error && (
-
-            <div className="mb-6 rounded-xl border border-red-500/20 bg-red-500/5 p-5 text-sm text-red-400">
-
-              {error}
-
-            </div>
-
-          )}
-
-
-          {/* ==================================================
-              EMPTY STATE
-          ================================================== */}
-
-          {!error &&
-            filteredPullRequests.length === 0 && (
-
-              <div className="flex flex-col items-center justify-center rounded-xl border border-white/10 bg-[#111116] px-6 py-20 text-center">
-
-
-                <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-purple-500/10 text-purple-400">
-
-                  <GitPullRequest
-                    size={25}
-                  />
-
-                </div>
-
-
-                <h2 className="mt-5 text-lg font-semibold">
-
-                  {search ||
-                  statusFilter !== "all"
-
-                    ? "No pull requests found"
-
-                    : "No pull requests yet"}
-
-                </h2>
-
-
-                <p className="mt-2 max-w-md text-sm text-gray-500">
-
-                  {search ||
-                  statusFilter !== "all"
-
-                    ? "Try changing your search or filter."
-
-                    : "Create your first pull request to start tracking changes."}
-
-                </p>
-
-
-                {!search &&
-                  statusFilter === "all" && (
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setShowCreatePR(
-                          true
-                        )
-                      }
-                      className="mt-6 flex items-center gap-2 rounded-lg bg-purple-600 px-5 py-3 text-sm font-semibold transition hover:bg-purple-500"
-                    >
-
-                      <Plus size={18} />
-
-                      Create Pull Request
-
-                    </button>
-
+                {projects
+                  .filter(
+                    (project) =>
+                      project.github_repo_id &&
+                      project.github_owner &&
+                      project.github_repository
+                  )
+                  .map(
+                    (project) => (
+                      <option
+                        key={project.id}
+                        value={project.id}
+                      >
+                        {project.name}
+                      </option>
+                    )
                   )}
 
-              </div>
-
-            )}
-
-
-          {/* ==================================================
-              PR LIST
-          ================================================== */}
-
-          {!error &&
-            filteredPullRequests.length > 0 && (
-
-              <div className="overflow-hidden rounded-xl border border-white/10 bg-[#111116]">
-
-
-                {/* TABLE HEADER */}
-
-                <div className="hidden border-b border-white/10 px-6 py-4 text-xs font-medium uppercase tracking-wide text-gray-500 md:grid md:grid-cols-[2fr_1.2fr_1fr_80px]">
-
-                  <span>
-                    Pull Request
-                  </span>
-
-                  <span>
-                    Project
-                  </span>
-
-                  <span>
-                    Status
-                  </span>
-
-                  <span>
-                    Actions
-                  </span>
-
-                </div>
-
-
-                {/* PR ROWS */}
-
-                {filteredPullRequests.map(
-                  (pullRequest) => (
-
-                    <div
-                      key={
-                        pullRequest.id
-                      }
-                      className="group border-b border-white/10 px-6 py-5 last:border-b-0 md:grid md:grid-cols-[2fr_1.2fr_1fr_80px] md:items-center"
-                    >
-
-
-                      {/* PR INFORMATION */}
-
-                      <div className="min-w-0">
-
-                        <div className="flex items-center gap-2">
-
-                          <GitPullRequest
-                            size={17}
-                            className="shrink-0 text-purple-400"
-                          />
-
-
-                          <h2 className="truncate font-semibold text-white">
-
-                            {pullRequest.title}
-
-                          </h2>
-
-                        </div>
-
-                      </div>
-
-
-                      {/* PROJECT */}
-
-                      <div className="mt-4 flex items-center gap-2 text-sm text-gray-400 md:mt-0">
-
-                        <FolderKanban
-                          size={16}
-                          className="text-purple-400"
-                        />
-
-
-                        <span className="truncate">
-
-                          {getProjectName(
-                            pullRequest.project_id
-                          )}
-
-                        </span>
-
-                      </div>
-
-
-                      {/* STATUS */}
-
-                      <div className="mt-4 md:mt-0">
-
-                        <span
-                          className={
-                            `inline-flex rounded-full ` +
-                            `px-3 py-1 text-xs ` +
-                            `font-medium ` +
-                            getStatusStyles(
-                              pullRequest.status
-                            )
-                          }
-                        >
-
-                          {pullRequest.status
-                            .charAt(0)
-                            .toUpperCase() +
-                            pullRequest.status.slice(
-                              1
-                            )}
-
-                        </span>
-
-                      </div>
-
-
-                      {/* ACTIONS */}
-
-                      <div className="mt-4 flex justify-end gap-2 md:mt-0">
-
-
-                        {/* EDIT */}
-
-                        <button
-                          type="button"
-                          onClick={() =>
-                            handleOpenEdit(
-                              pullRequest
-                            )
-                          }
-                          className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 transition hover:bg-purple-500/10 hover:text-purple-400"
-                          aria-label={
-                            `Edit ${pullRequest.title}`
-                          }
-                          title="Edit pull request"
-                        >
-
-                          <Pencil
-                            size={17}
-                          />
-
-                        </button>
-
-
-                        {/* DELETE */}
-
-                        <button
-                          type="button"
-                          onClick={() =>
-                            handleDeletePR(
-                              pullRequest.id
-                            )
-                          }
-                          className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 transition hover:bg-red-500/10 hover:text-red-400"
-                          aria-label={
-                            `Delete ${pullRequest.title}`
-                          }
-                          title="Delete pull request"
-                        >
-
-                          <Trash2
-                            size={17}
-                          />
-
-                        </button>
-
-                      </div>
-
-                    </div>
-
-                  )
-                )}
-
-              </div>
-
-            )}
-
-        </div>
-
-      </main>
-
-
-      {/* ======================================================
-          CREATE PULL REQUEST MODAL
-      ====================================================== */}
-
-      {showCreatePR && (
-
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
-
-
-          <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-[#111116] shadow-2xl">
-
-
-            {/* MODAL HEADER */}
-
-            <div className="flex items-center justify-between border-b border-white/10 px-6 py-5">
-
-              <div>
-
-                <h2 className="text-lg font-semibold text-white">
-                  Create Pull Request
-                </h2>
-
-
-                <p className="mt-1 text-sm text-gray-500">
-                  Add a new pull request to your project.
-                </p>
-
-              </div>
-
+              </select>
 
               <button
                 type="button"
                 onClick={() =>
-                  setShowCreatePR(
-                    false
-                  )
+                  fetchGithubPullRequests()
                 }
-                className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-400 transition hover:bg-white/5 hover:text-white"
-                aria-label="Close"
+                disabled={
+                  !selectedProject ||
+                  loadingPRs
+                }
+                className="flex h-11 w-11 items-center justify-center rounded-lg border border-white/10 bg-[#111116] text-gray-400 transition hover:bg-white/5 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                title="Refresh pull requests"
               >
 
-                <X size={20} />
+                <RefreshCw
+                  size={18}
+                  className={
+                    loadingPRs
+                      ? "animate-spin"
+                      : ""
+                  }
+                />
 
               </button>
 
             </div>
 
+          </div>
 
-            {/* CREATE FORM */}
+          {/* ====================================================
+              CONNECTED REPOSITORY
+          ==================================================== */}
 
-            <form
-              onSubmit={
-                handleCreatePR
-              }
-              className="space-y-5 p-6"
-            >
-
-
-              {/* ERROR */}
-
-              {createError && (
-
-                <div className="rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
-
-                  {createError}
-
-                </div>
-
-              )}
-
-
-              {/* PROJECT */}
+          {currentProject && (
+            <div className="mb-6 flex flex-col gap-2 rounded-xl border border-purple-500/20 bg-purple-500/5 px-5 py-4 md:flex-row md:items-center md:justify-between">
 
               <div>
 
-                <label
-                  htmlFor="pr-project"
-                  className="mb-2 block text-sm font-medium text-gray-200"
-                >
-                  Project
-                </label>
+                <p className="text-xs uppercase tracking-wide text-gray-500">
+                  Connected repository
+                </p>
 
-
-                <select
-                  id="pr-project"
-                  value={
-                    selectedProject
-                  }
-                  onChange={(event) =>
-                    setSelectedProject(
-                      event.target.value
-                    )
-                  }
-                  disabled={creating}
-                  className="w-full rounded-lg border border-white/10 bg-[#0b0b0f] px-4 py-3 text-sm text-white outline-none focus:border-purple-500"
-                >
-
-                  <option value="">
-                    Select a project
-                  </option>
-
-
-                  {projects.map(
-                    (project) => (
-
-                      <option
-                        key={
-                          project.id
-                        }
-                        value={
-                          project.id
-                        }
-                      >
-
-                        {
-                          project.name
-                        }
-
-                      </option>
-
-                    )
-                  )}
-
-                </select>
+                <p className="mt-1 font-medium text-white">
+                  {currentProject.github_owner}/
+                  {currentProject.github_repository}
+                </p>
 
               </div>
 
+              <a
+                href={`https://github.com/${currentProject.github_owner}/${currentProject.github_repository}`}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-2 text-sm text-purple-400 hover:text-purple-300"
+              >
+                Open GitHub
+                <ExternalLink size={15} />
+              </a>
 
-              {/* TITLE */}
+            </div>
+          )}
 
-              <div>
+          {/* ====================================================
+              SEARCH + FILTER
+          ==================================================== */}
 
-                <label
-                  htmlFor="pr-title"
-                  className="mb-2 block text-sm font-medium text-gray-200"
-                >
-                  Pull Request title
-                </label>
+          {selectedProject && (
+            <div className="mb-6 flex flex-col gap-4 md:flex-row">
 
+              <div className="relative max-w-md flex-1">
+
+                <Search
+                  size={18}
+                  className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500"
+                />
 
                 <input
-                  id="pr-title"
                   type="text"
-                  value={
-                    prTitle
-                  }
+                  value={search}
                   onChange={(event) =>
-                    setPrTitle(
+                    setSearch(
                       event.target.value
                     )
                   }
-                  placeholder="e.g. Add authentication system"
-                  maxLength={250}
-                  disabled={creating}
-                  className="w-full rounded-lg border border-white/10 bg-[#0b0b0f] px-4 py-3 text-sm text-white outline-none placeholder:text-gray-600 focus:border-purple-500"
+                  placeholder="Search GitHub pull requests..."
+                  className="w-full rounded-lg border border-white/10 bg-[#111116] py-3 pl-11 pr-4 text-sm text-white outline-none placeholder:text-gray-600 focus:border-purple-500"
                 />
 
               </div>
 
+              <select
+                value={statusFilter}
+                onChange={(event) =>
+                  setStatusFilter(
+                    event.target.value
+                  )
+                }
+                className="rounded-lg border border-white/10 bg-[#111116] px-4 py-3 text-sm text-gray-300 outline-none focus:border-purple-500"
+              >
 
-              {/* STATUS */}
+                <option value="all">
+                  All statuses
+                </option>
 
-              <div>
+                <option value="open">
+                  Open
+                </option>
 
-                <label
-                  htmlFor="pr-status"
-                  className="mb-2 block text-sm font-medium text-gray-200"
-                >
-                  Status
-                </label>
+                <option value="merged">
+                  Merged
+                </option>
 
+                <option value="closed">
+                  Closed
+                </option>
 
-                <select
-                  id="pr-status"
-                  value={
-                    prStatus
-                  }
-                  onChange={(event) =>
-                    setPrStatus(
-                      event.target.value
-                    )
-                  }
-                  disabled={creating}
-                  className="w-full rounded-lg border border-white/10 bg-[#0b0b0f] px-4 py-3 text-sm text-white outline-none focus:border-purple-500"
-                >
+              </select>
 
-                  <option value="open">
-                    Open
-                  </option>
+            </div>
+          )}
 
+          {/* ====================================================
+              ERROR
+          ==================================================== */}
 
-                  <option value="closed">
-                    Closed
-                  </option>
+          {(error || prError) && (
+            <div className="mb-6 rounded-xl border border-red-500/20 bg-red-500/5 p-5 text-sm text-red-400">
+              {error || prError}
+            </div>
+          )}
 
+          {/* ====================================================
+              NO PROJECT
+          ==================================================== */}
 
-                  <option value="merged">
-                    Merged
-                  </option>
+          {!selectedProject && !error && (
+            <div className="flex flex-col items-center justify-center rounded-xl border border-white/10 bg-[#111116] px-6 py-20 text-center">
 
-                </select>
-
+              <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-purple-500/10 text-purple-400">
+                <GitPullRequest size={25} />
               </div>
 
+              <h2 className="mt-5 text-lg font-semibold">
+                Select a GitHub project
+              </h2>
 
-              {/* BUTTONS */}
+              <p className="mt-2 max-w-md text-sm text-gray-500">
+                Select a project connected to a GitHub repository to view its real pull requests.
+              </p>
 
-              <div className="flex justify-end gap-3 border-t border-white/10 pt-5">
+            </div>
+          )}
 
+          {/* ====================================================
+              LOADING
+          ==================================================== */}
 
-                <button
-                  type="button"
-                  onClick={() =>
-                    setShowCreatePR(
-                      false
-                    )
-                  }
-                  disabled={creating}
-                  className="rounded-lg border border-white/10 px-5 py-2.5 text-sm font-medium text-gray-300 transition hover:bg-white/5 hover:text-white disabled:opacity-50"
-                >
-                  Cancel
-                </button>
+          {selectedProject &&
+            loadingPRs && (
+              <div className="space-y-3">
 
-
-                <button
-                  type="submit"
-                  disabled={creating}
-                  className="rounded-lg bg-gradient-to-r from-purple-600 to-purple-500 px-5 py-2.5 text-sm font-medium text-white transition hover:from-purple-500 hover:to-purple-400 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-
-                  {creating
-                    ? "Creating..."
-                    : "Create Pull Request"}
-
-                </button>
+                {[1, 2, 3].map(
+                  (item) => (
+                    <div
+                      key={item}
+                      className="h-32 animate-pulse rounded-xl bg-[#111116]"
+                    />
+                  )
+                )}
 
               </div>
+            )}
 
-            </form>
+          {/* ====================================================
+              EMPTY
+          ==================================================== */}
+
+          {selectedProject &&
+            !loadingPRs &&
+            !prError &&
+            filteredPullRequests.length ===
+              0 && (
+              <div className="flex flex-col items-center justify-center rounded-xl border border-white/10 bg-[#111116] px-6 py-20 text-center">
+
+                <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-purple-500/10 text-purple-400">
+                  <GitPullRequest size={25} />
+                </div>
+
+                <h2 className="mt-5 text-lg font-semibold">
+                  {search ||
+                  statusFilter !==
+                    "all"
+                    ? "No pull requests found"
+                    : "No GitHub pull requests"}
+                </h2>
+
+                <p className="mt-2 max-w-md text-sm text-gray-500">
+                  {search ||
+                  statusFilter !==
+                    "all"
+                    ? "Try changing your search or status filter."
+                    : "This repository does not currently have any pull requests."}
+                </p>
+
+              </div>
+            )}
+
+          {/* ====================================================
+              SEPARATED PR SECTIONS
+          ==================================================== */}
+
+          {selectedProject &&
+            !loadingPRs &&
+            !prError &&
+            filteredPullRequests.length > 0 && (
+              <div className="space-y-8">
+
+                {/* ==================================================
+                    OPEN
+                ================================================== */}
+
+                {openPullRequests.length > 0 && (
+                  <PRSection
+                    title="Open Pull Requests"
+                    count={
+                      openPullRequests.length
+                    }
+                    status="open"
+                    pullRequests={
+                      openPullRequests
+                    }
+                    onSelectPR={
+                      handleSelectPR
+                    }
+                    getStatusStyles={
+                      getStatusStyles
+                    }
+                    formatDate={
+                      formatDate
+                    }
+                  />
+                )}
+
+                {/* ==================================================
+                    MERGED
+                ================================================== */}
+
+                {mergedPullRequests.length >
+                  0 && (
+                  <PRSection
+                    title="Merged Pull Requests"
+                    count={
+                      mergedPullRequests.length
+                    }
+                    status="merged"
+                    pullRequests={
+                      mergedPullRequests
+                    }
+                    onSelectPR={
+                      handleSelectPR
+                    }
+                    getStatusStyles={
+                      getStatusStyles
+                    }
+                    formatDate={
+                      formatDate
+                    }
+                  />
+                )}
+
+                {/* ==================================================
+                    CLOSED
+                ================================================== */}
+
+                {closedPullRequests.length >
+                  0 && (
+                  <PRSection
+                    title="Closed Pull Requests"
+                    count={
+                      closedPullRequests.length
+                    }
+                    status="closed"
+                    pullRequests={
+                      closedPullRequests
+                    }
+                    onSelectPR={
+                      handleSelectPR
+                    }
+                    getStatusStyles={
+                      getStatusStyles
+                    }
+                    formatDate={
+                      formatDate
+                    }
+                  />
+                )}
+
+              </div>
+            )}
+
+        </div>
+      </main>
+
+      {/* ========================================================
+          PR DETAILS LOADING
+      ======================================================== */}
+
+      {loadingPRDetails && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm">
+
+          <div className="rounded-xl border border-white/10 bg-[#111116] px-8 py-6 text-center">
+
+            <RefreshCw
+              size={24}
+              className="mx-auto animate-spin text-purple-400"
+            />
+
+            <p className="mt-4 text-sm text-gray-300">
+              Loading pull request...
+            </p>
 
           </div>
 
         </div>
-
       )}
 
+      {/* ========================================================
+          PR DETAILS ERROR
+      ======================================================== */}
 
-      {/* ======================================================
-          EDIT PULL REQUEST MODAL
-      ====================================================== */}
+      {prDetailsError && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm">
 
-      {showEditPR &&
-        editingPR && (
+          <div className="w-full max-w-md rounded-xl border border-red-500/20 bg-[#111116] p-6">
 
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
+            <div className="flex items-start justify-between">
 
+              <h2 className="font-semibold text-white">
+                Unable to load PR
+              </h2>
 
-            <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-[#111116] shadow-2xl">
-
-
-              {/* EDIT MODAL HEADER */}
-
-              <div className="flex items-center justify-between border-b border-white/10 px-6 py-5">
-
-                <div>
-
-                  <h2 className="text-lg font-semibold text-white">
-                    Edit Pull Request
-                  </h2>
-
-
-                  <p className="mt-1 text-sm text-gray-500">
-                    Update your pull request.
-                  </p>
-
-                </div>
-
-
-                <button
-                  type="button"
-                  onClick={() => {
-
-                    setShowEditPR(
-                      false
-                    );
-
-                    setEditingPR(
-                      null
-                    );
-
-                    setUpdateError(
-                      ""
-                    );
-
-                  }}
-                  className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-400 transition hover:bg-white/5 hover:text-white"
-                  aria-label="Close"
-                >
-
-                  <X size={20} />
-
-                </button>
-
-              </div>
-
-
-              {/* EDIT FORM */}
-
-              <form
-                onSubmit={
-                  handleUpdatePR
+              <button
+                type="button"
+                onClick={() =>
+                  setPrDetailsError("")
                 }
-                className="space-y-5 p-6"
+                className="text-gray-500 hover:text-white"
               >
-
-
-                {/* ERROR */}
-
-                {updateError && (
-
-                  <div className="rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
-
-                    {updateError}
-
-                  </div>
-
-                )}
-
-
-                {/* TITLE */}
-
-                <div>
-
-                  <label
-                    htmlFor="edit-pr-title"
-                    className="mb-2 block text-sm font-medium text-gray-200"
-                  >
-                    Pull Request title
-                  </label>
-
-
-                  <input
-                    id="edit-pr-title"
-                    type="text"
-                    value={
-                      editingPR.title
-                    }
-                    onChange={(event) =>
-                      setEditingPR({
-                        ...editingPR,
-                        title:
-                          event.target.value,
-                      })
-                    }
-                    maxLength={250}
-                    disabled={updating}
-                    className="w-full rounded-lg border border-white/10 bg-[#0b0b0f] px-4 py-3 text-sm text-white outline-none placeholder:text-gray-600 focus:border-purple-500"
-                  />
-
-                </div>
-
-
-                {/* STATUS */}
-
-                <div>
-
-                  <label
-                    htmlFor="edit-pr-status"
-                    className="mb-2 block text-sm font-medium text-gray-200"
-                  >
-                    Status
-                  </label>
-
-
-                  <select
-                    id="edit-pr-status"
-                    value={
-                      editingPR.status
-                    }
-                    onChange={(event) =>
-                      setEditingPR({
-                        ...editingPR,
-                        status:
-                          event.target.value,
-                      })
-                    }
-                    disabled={updating}
-                    className="w-full rounded-lg border border-white/10 bg-[#0b0b0f] px-4 py-3 text-sm text-white outline-none focus:border-purple-500"
-                  >
-
-                    <option value="open">
-                      Open
-                    </option>
-
-
-                    <option value="closed">
-                      Closed
-                    </option>
-
-
-                    <option value="merged">
-                      Merged
-                    </option>
-
-                  </select>
-
-                </div>
-
-
-                {/* BUTTONS */}
-
-                <div className="flex justify-end gap-3 border-t border-white/10 pt-5">
-
-
-                  <button
-                    type="button"
-                    onClick={() => {
-
-                      setShowEditPR(
-                        false
-                      );
-
-                      setEditingPR(
-                        null
-                      );
-
-                      setUpdateError(
-                        ""
-                      );
-
-                    }}
-                    disabled={updating}
-                    className="rounded-lg border border-white/10 px-5 py-2.5 text-sm font-medium text-gray-300 transition hover:bg-white/5 hover:text-white disabled:opacity-50"
-                  >
-                    Cancel
-                  </button>
-
-
-                  <button
-                    type="submit"
-                    disabled={
-                      updating ||
-                      !editingPR.title.trim()
-                    }
-                    className="rounded-lg bg-gradient-to-r from-purple-600 to-purple-500 px-5 py-2.5 text-sm font-medium text-white transition hover:from-purple-500 hover:to-purple-400 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-
-                    {updating
-                      ? "Saving..."
-                      : "Save Changes"}
-
-                  </button>
-
-                </div>
-
-              </form>
+                <X size={18} />
+              </button>
 
             </div>
 
+            <p className="mt-3 text-sm text-red-400">
+              {prDetailsError}
+            </p>
+
           </div>
 
-        )}
+        </div>
+      )}
 
     </div>
-
   );
-
 }
 
+// ============================================================
+// PR SECTION COMPONENT
+// ============================================================
+
+function PRSection({
+  title,
+  count,
+  status,
+  pullRequests,
+  onSelectPR,
+  getStatusStyles,
+  formatDate,
+}) {
+  return (
+    <section>
+
+      {/* ======================================================
+          SECTION HEADER
+      ====================================================== */}
+
+      <div className="mb-3 flex items-center justify-between">
+
+        <div className="flex items-center gap-3">
+
+          <h2 className="text-lg font-semibold text-white">
+            {title}
+          </h2>
+
+          <span
+            className={`rounded-full px-2.5 py-1 text-xs font-medium ${getStatusStyles(
+              status
+            )}`}
+          >
+            {count}
+          </span>
+
+        </div>
+
+      </div>
+
+      {/* ======================================================
+          PR CARDS
+      ====================================================== */}
+
+      <div className="overflow-hidden rounded-xl border border-white/10 bg-[#111116]">
+
+        {pullRequests.map(
+          (pullRequest) => (
+            <div
+              key={
+                pullRequest.number
+              }
+              onClick={() =>
+                onSelectPR(
+                  pullRequest
+                )
+              }
+              role="button"
+              tabIndex={0}
+              onKeyDown={(event) => {
+                if (
+                  event.key ===
+                  "Enter"
+                ) {
+                  onSelectPR(
+                    pullRequest
+                  );
+                }
+              }}
+              className="group cursor-pointer border-b border-white/10 px-6 py-5 transition last:border-b-0 hover:bg-white/[0.025]"
+            >
+
+              <div className="flex flex-col gap-5 lg:flex-row lg:items-center">
+
+                {/* ==================================================
+                    TITLE
+                ================================================== */}
+
+                <div className="min-w-0 flex-1">
+
+                  <div className="flex items-start gap-3">
+
+                    <GitPullRequest
+                      size={19}
+                      className="mt-1 shrink-0 text-purple-400"
+                    />
+
+                    <div className="min-w-0">
+
+                      <div className="flex flex-wrap items-center gap-2">
+
+                        <span className="text-sm text-gray-500">
+                          #{pullRequest.number}
+                        </span>
+
+                        <h3 className="font-semibold text-white group-hover:text-purple-300">
+                          {
+                            pullRequest.title
+                          }
+                        </h3>
+
+                      </div>
+
+                      <p className="mt-1 text-xs text-gray-500">
+                        Updated{" "}
+                        {formatDate(
+                          pullRequest.updated_at
+                        )}
+                      </p>
+
+                    </div>
+
+                  </div>
+
+                </div>
+
+                {/* ==================================================
+                    BRANCH
+                ================================================== */}
+
+                <div className="flex min-w-[220px] items-center gap-2 text-sm text-gray-400">
+
+                  <GitBranch
+                    size={16}
+                    className="shrink-0 text-purple-400"
+                  />
+
+                  <span className="truncate">
+                    {
+                      pullRequest.head_branch
+                    }
+                  </span>
+
+                  <span className="text-gray-600">
+                    →
+                  </span>
+
+                  <span className="truncate text-gray-500">
+                    {
+                      pullRequest.base_branch
+                    }
+                  </span>
+
+                </div>
+
+                {/* ==================================================
+                    AUTHOR
+                ================================================== */}
+
+                <div className="min-w-[140px] text-sm text-gray-400">
+
+                  {pullRequest.author ||
+                    "Unknown"}
+
+                </div>
+
+                {/* ==================================================
+                    STATUS
+                ================================================== */}
+
+                <div className="min-w-[90px]">
+
+                  <span
+                    className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${getStatusStyles(
+                      status
+                    )}`}
+                  >
+                    {status
+                      .charAt(0)
+                      .toUpperCase() +
+                      status.slice(1)}
+                  </span>
+
+                </div>
+
+                {/* ==================================================
+                    GITHUB LINK
+                ================================================== */}
+
+                <div
+                  onClick={(event) =>
+                    event.stopPropagation()
+                  }
+                >
+
+                  <a
+                    href={
+                      pullRequest.html_url
+                    }
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 transition hover:bg-purple-500/10 hover:text-purple-400"
+                    title="Open on GitHub"
+                  >
+                    <ExternalLink
+                      size={17}
+                    />
+                  </a>
+
+                </div>
+
+              </div>
+
+            </div>
+          )
+        )}
+
+      </div>
+
+    </section>
+  );
+}
 
 export default PullRequests;
