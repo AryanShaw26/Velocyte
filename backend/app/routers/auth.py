@@ -1,4 +1,5 @@
 import uuid
+
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlencode
 
@@ -10,6 +11,7 @@ from fastapi import (
     HTTPException,
     status,
 )
+
 from fastapi.responses import RedirectResponse
 
 from jose import JWTError, jwt
@@ -339,10 +341,6 @@ def update_profile(
 @router.get("/github")
 def github_login():
 
-    # --------------------------------------------------------
-    # Create a short-lived signed OAuth state
-    # --------------------------------------------------------
-
     expire = (
         datetime.now(timezone.utc)
         + timedelta(minutes=10)
@@ -361,7 +359,7 @@ def github_login():
     params = {
         "client_id": settings.GITHUB_CLIENT_ID,
         "redirect_uri": settings.GITHUB_OAUTH_CALLBACK_URL,
-        "scope": "read:user user:email",
+        "scope": "repo read:user user:email",
         "state": state,
     }
 
@@ -373,6 +371,54 @@ def github_login():
         url=github_authorization_url,
         status_code=status.HTTP_302_FOUND
     )
+
+
+# ============================================================
+# GITHUB OAUTH — CONNECT TO EXISTING VELOCYTE ACCOUNT
+# ============================================================
+
+@router.post("/github/connect")
+def github_connect(
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Start GitHub OAuth for an already authenticated
+    Velocyte user.
+
+    Unlike /github, this endpoint does NOT create or
+    switch Velocyte accounts.
+    """
+
+    expire = (
+        datetime.now(timezone.utc)
+        + timedelta(minutes=10)
+    )
+
+    state = jwt.encode(
+        {
+            "type": "github_connect_state",
+            "user_id": str(current_user.id),
+            "nonce": str(uuid.uuid4()),
+            "exp": expire,
+        },
+        settings.SECRET_KEY,
+        algorithm=JWT_ALGORITHM
+    )
+
+    params = {
+        "client_id": settings.GITHUB_CLIENT_ID,
+        "redirect_uri": settings.GITHUB_OAUTH_CALLBACK_URL,
+        "scope": "repo read:user user:email",
+        "state": state,
+    }
+
+    github_authorization_url = (
+        f"{GITHUB_AUTHORIZE_URL}?{urlencode(params)}"
+    )
+
+    return {
+        "authorization_url": github_authorization_url
+    }
 
 
 # ============================================================
@@ -424,10 +470,13 @@ async def github_callback(
             algorithms=[JWT_ALGORITHM]
         )
 
-        if (
-            state_payload.get("type")
-            != "github_oauth_state"
-        ):
+        oauth_type = state_payload.get("type")
+
+        if oauth_type not in {
+            "github_oauth_state",
+            "github_connect_state"
+        }:
+
             raise JWTError()
 
     except JWTError:
@@ -464,7 +513,10 @@ async def github_callback(
 
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
-                detail="Failed to exchange GitHub authorization code"
+                detail=(
+                    "Failed to exchange GitHub "
+                    "authorization code"
+                )
             )
 
         token_data = token_response.json()
@@ -489,7 +541,7 @@ async def github_callback(
             "Authorization": (
                 f"Bearer {github_access_token}"
             ),
-            "X-GitHub-Api-Version": "2026-03-10",
+            "X-GitHub-Api-Version": "2022-11-28",
         }
 
         github_user_response = await client.get(
@@ -518,7 +570,9 @@ async def github_callback(
 
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
-                detail="GitHub user information is incomplete"
+                detail=(
+                    "GitHub user information is incomplete"
+                )
             )
 
         # ----------------------------------------------------
@@ -543,7 +597,11 @@ async def github_callback(
                     email_data.get("primary")
                     and email_data.get("verified")
                 ):
-                    github_email = email_data.get("email")
+
+                    github_email = email_data.get(
+                        "email"
+                    )
+
                     break
 
             # Fallback to any verified email
@@ -582,8 +640,145 @@ async def github_callback(
         github_email = github_email.lower()
 
     # ========================================================
-    # FIND EXISTING USER
+    # CONNECT GITHUB TO EXISTING VELOCYTE ACCOUNT
     # ========================================================
+
+    if oauth_type == "github_connect_state":
+
+        # ----------------------------------------------------
+        # Get Velocyte user ID from signed OAuth state
+        # ----------------------------------------------------
+
+        target_user_id = state_payload.get(
+            "user_id"
+        )
+
+        if not target_user_id:
+
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Velocyte user information is missing"
+            )
+
+        # ----------------------------------------------------
+        # Find the Velocyte account
+        # ----------------------------------------------------
+
+        target_user = (
+            db.query(User)
+            .filter(
+                User.id == target_user_id
+            )
+            .first()
+        )
+
+        if not target_user:
+
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Velocyte account no longer exists"
+            )
+
+        # ----------------------------------------------------
+        # Check whether this GitHub account is already
+        # connected to another Velocyte account
+        # ----------------------------------------------------
+
+        linked_user = (
+            db.query(User)
+            .filter(
+                User.github_id == github_id
+            )
+            .first()
+        )
+
+        if (
+            linked_user
+            and linked_user.id != target_user.id
+        ):
+
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "This GitHub account is already connected "
+                    "to another Velocyte account."
+                )
+            )
+
+        # ----------------------------------------------------
+        # Check whether current Velocyte account already has
+        # a DIFFERENT GitHub account connected
+        # ----------------------------------------------------
+
+        if (
+            target_user.github_id
+            and target_user.github_id != github_id
+        ):
+
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "Your Velocyte account is already connected "
+                    "to a different GitHub account."
+                )
+            )
+
+        # ----------------------------------------------------
+        # Attach GitHub to this exact Velocyte account
+        # ----------------------------------------------------
+
+        target_user.github_id = github_id
+
+        target_user.github_username = github_username
+
+        target_user.github_access_token = (
+            github_access_token
+        )
+
+        target_user.is_verified = True
+
+        db.commit()
+
+        db.refresh(target_user)
+
+        # ----------------------------------------------------
+        # Redirect to frontend connection callback
+        #
+        # We use QUERY PARAMETERS instead of a URL fragment.
+        #
+        # We intentionally DO NOT send the GitHub access
+        # token or Velocyte JWT through the URL.
+        # ----------------------------------------------------
+
+        params = urlencode(
+            {
+                "status": "success",
+                "github_username": github_username,
+            }
+        )
+
+        frontend_url = (
+            f"{settings.FRONTEND_URL}"
+            f"/github-connect-callback?{params}"
+        )
+
+        print(
+            "GITHUB CONNECT REDIRECT:",
+            frontend_url
+        )
+
+        return RedirectResponse(
+            url=frontend_url,
+            status_code=status.HTTP_302_FOUND
+        )
+
+    # ========================================================
+    # NORMAL GITHUB LOGIN
+    # ========================================================
+
+    # --------------------------------------------------------
+    # Find existing user by GitHub ID
+    # --------------------------------------------------------
 
     user = (
         db.query(User)
@@ -610,7 +805,15 @@ async def github_callback(
         if user:
 
             user.github_id = github_id
-            user.github_username = github_username
+
+            user.github_username = (
+                github_username
+            )
+
+            user.github_access_token = (
+                github_access_token
+            )
+
             user.is_verified = True
 
     # ========================================================
@@ -624,9 +827,10 @@ async def github_callback(
         )
 
         user = User(
-            name=github_user.get(
-                "name"
-            ) or github_username,
+            name=(
+                github_user.get("name")
+                or github_username
+            ),
 
             email=github_email,
 
@@ -636,15 +840,30 @@ async def github_callback(
 
             github_username=github_username,
 
+            github_access_token=(
+                github_access_token
+            ),
+
             is_verified=True
         )
 
         db.add(user)
 
+    # ========================================================
+    # UPDATE EXISTING GITHUB USER
+    # ========================================================
+
     else:
 
         user.github_id = github_id
-        user.github_username = github_username
+
+        user.github_username = (
+            github_username
+        )
+
+        user.github_access_token = (
+            github_access_token
+        )
 
     # ========================================================
     # SAVE USER
@@ -668,10 +887,6 @@ async def github_callback(
 
     # ========================================================
     # REDIRECT TO FRONTEND
-    #
-    # Tokens are placed in the URL fragment (#), not the
-    # query string, so browsers do not send them as HTTP
-    # request parameters to the backend.
     # ========================================================
 
     params = urlencode(

@@ -88,3 +88,7 @@ class User(Base):
         onupdate=datetime.utcnow,
         nullable=False
     )
+    github_access_token: Mapped[str | None] = mapped_column(
+    String(500),
+    nullable=True
+)

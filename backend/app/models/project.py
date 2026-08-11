@@ -36,3 +36,22 @@ class Project(Base):
         default=False,
         nullable=False
     )
+
+    # ============================================================
+    # GITHUB REPOSITORY
+    # ============================================================
+
+    github_repo_id: Mapped[int | None] = mapped_column(
+        nullable=True,
+        index=True
+    )
+
+    github_owner: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True
+    )
+
+    github_repository: Mapped[str | None] = mapped_column(
+        String(150),
+        nullable=True
+    )
