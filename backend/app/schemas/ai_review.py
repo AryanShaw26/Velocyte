@@ -1,6 +1,7 @@
 from uuid import UUID
+from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # ============================================================
@@ -76,22 +77,59 @@ class AIReviewResponse(BaseModel):
     Data returned from the API to the frontend.
     """
 
+    # ========================================================
+    # REVIEW ID
+    # ========================================================
+
     id: UUID
 
-    # Which Pull Request was reviewed
+    # ========================================================
+    # PULL REQUEST
+    # ========================================================
+
     pull_request_id: UUID
 
-    # Which project the Pull Request belongs to
+    # ========================================================
+    # PROJECT
+    # ========================================================
+
     project_id: UUID
+
+    # ========================================================
+    # REVIEW STATUS
+    # ========================================================
 
     status: str
 
-    score: int | None
+    # ========================================================
+    # AI SCORE
+    # ========================================================
 
-    summary: str | None
+    score: int | None = None
 
-    # AI-generated code review findings
-    findings: list[AIReviewFindingResponse] = []
+    # ========================================================
+    # AI SUMMARY
+    # ========================================================
+
+    summary: str | None = None
+
+    # ========================================================
+    # REVIEW DATE
+    # ========================================================
+
+    created_at: datetime
+
+    # ========================================================
+    # AI FINDINGS
+    # ========================================================
+
+    findings: list[AIReviewFindingResponse] = Field(
+        default_factory=list
+    )
+
+    # ========================================================
+    # SQLAlchemy ORM SUPPORT
+    # ========================================================
 
     model_config = ConfigDict(
         from_attributes=True

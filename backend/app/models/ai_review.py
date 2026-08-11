@@ -1,7 +1,20 @@
 import uuid
 
-from sqlalchemy import String, Text, ForeignKey
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from datetime import datetime
+
+from sqlalchemy import (
+    String,
+    Text,
+    ForeignKey,
+    DateTime,
+    func,
+)
+
+from sqlalchemy.orm import (
+    Mapped,
+    mapped_column,
+    relationship,
+)
 
 from app.db.database import Base
 
@@ -67,12 +80,21 @@ class AIReview(Base):
     )
 
     # ============================================================
+    # REVIEW CREATED AT
+    # ============================================================
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now()
+    )
+
+    # ============================================================
     # AI REVIEW FINDINGS
     # ============================================================
 
     findings: Mapped[list["AIReviewFinding"]] = relationship(
         "AIReviewFinding",
         back_populates="ai_review",
-        cascade="all, delete-orphan",
-        passive_deletes=True
+        cascade="all, delete-orphan"
     )

@@ -11,7 +11,12 @@ password_hash = PasswordHash.recommended()
 ALGORITHM = "HS256"
 
 
+# ============================================================
+# PASSWORD HASHING
+# ============================================================
+
 def hash_password(password: str) -> str:
+
     return password_hash.hash(password)
 
 
@@ -19,11 +24,16 @@ def verify_password(
     password: str,
     hashed_password: str
 ) -> bool:
+
     return password_hash.verify(
         password,
         hashed_password
     )
 
+
+# ============================================================
+# ACCESS TOKEN
+# ============================================================
 
 def create_access_token(user_id: str) -> str:
 
@@ -44,6 +54,10 @@ def create_access_token(user_id: str) -> str:
     )
 
 
+# ============================================================
+# REFRESH TOKEN
+# ============================================================
+
 def create_refresh_token(user_id: str) -> str:
 
     expire = datetime.now(timezone.utc) + timedelta(
@@ -62,6 +76,10 @@ def create_refresh_token(user_id: str) -> str:
         algorithm=ALGORITHM
     )
 
+
+# ============================================================
+# DECODE ACCESS TOKEN
+# ============================================================
 
 def decode_access_token(token: str) -> str:
 
@@ -85,4 +103,37 @@ def decode_access_token(token: str) -> str:
 
     except JWTError:
 
-        raise ValueError("Invalid or expired access token")
+        raise ValueError(
+            "Invalid or expired access token"
+        )
+
+
+# ============================================================
+# DECODE REFRESH TOKEN
+# ============================================================
+
+def decode_refresh_token(token: str) -> str:
+
+    try:
+
+        payload = jwt.decode(
+            token,
+            settings.SECRET_KEY,
+            algorithms=[ALGORITHM]
+        )
+
+        if payload.get("type") != "refresh":
+            raise JWTError()
+
+        user_id = payload.get("sub")
+
+        if not user_id:
+            raise JWTError()
+
+        return user_id
+
+    except JWTError:
+
+        raise ValueError(
+            "Invalid or expired refresh token"
+        )

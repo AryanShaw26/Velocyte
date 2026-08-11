@@ -60,6 +60,34 @@ export function AuthProvider({ children }) {
 
     return data;
   };
+  // =====================================
+// LOGIN WITH EXISTING TOKENS
+// =====================================
+
+const loginWithTokens = async (
+  accessToken,
+  refreshToken
+) => {
+  const currentUser = await getCurrentUser(
+    accessToken
+  );
+
+  localStorage.setItem(
+    "velocyte_access_token",
+    accessToken
+  );
+
+  localStorage.setItem(
+    "velocyte_refresh_token",
+    refreshToken
+  );
+
+  setAccessToken(accessToken);
+
+  setUser(currentUser);
+
+  return currentUser;
+};
 
   // =====================================
   // LOGOUT
@@ -89,6 +117,7 @@ export function AuthProvider({ children }) {
     loading,
 
     login,
+    loginWithTokens,
 
     logout,
   };
