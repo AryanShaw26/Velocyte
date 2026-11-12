@@ -19,6 +19,10 @@ class Settings(BaseSettings):
 
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
+    # GitHub Token Encryption
+    GITHUB_TOKEN_ENCRYPTION_KEY: str
+
+    
     # ============================================================
     # GITHUB API
     # ============================================================
