@@ -23,6 +23,7 @@ from app.services.github_service import (
     close_repository_pull_request,
 )
 
+from app.services.github_token_service import get_github_access_token
 
 # ============================================================
 # GITHUB ROUTER
@@ -50,6 +51,7 @@ async def test_connection():
 @router.get("/repositories")
 async def get_github_repositories(
     current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """
     Fetch repositories accessible to the GitHub account
@@ -62,8 +64,13 @@ async def get_github_repositories(
             detail="GitHub account is not connected",
         )
 
+    github_token = get_github_access_token(
+    user=current_user,
+    db=db
+    )
+
     result = await get_user_repositories(
-        current_user.github_access_token
+        github_token
     )
 
     if not result.get("success"):
@@ -159,10 +166,13 @@ async def get_project_github_pull_requests(
     # Fetch PRs from GitHub
     # --------------------------------------------------------
 
+    github_token = get_github_access_token(
+    user=current_user,
+    db=db
+  )
+
     result = await get_repository_pull_requests(
-        github_access_token=(
-            current_user.github_access_token
-        ),
+        github_access_token=github_token,
         github_owner=project.github_owner,
         github_repository=project.github_repository,
     )
@@ -274,13 +284,16 @@ async def get_project_github_pull_request(
     # Fetch PR from GitHub
     # --------------------------------------------------------
 
+    github_token = get_github_access_token(
+    user=current_user,
+    db=db
+    )
+
     result = await get_repository_pull_request(
-        github_access_token=(
-            current_user.github_access_token
-        ),
-        github_owner=project.github_owner,
-        github_repository=project.github_repository,
-        pr_number=pr_number,
+    github_access_token=github_token,
+    github_owner=project.github_owner,
+    github_repository=project.github_repository,
+    pr_number=pr_number,
     )
 
     # --------------------------------------------------------
@@ -388,9 +401,14 @@ async def get_project_github_pull_request_files(
     # Fetch changed files
     # --------------------------------------------------------
 
+    github_token = get_github_access_token(
+        user=current_user,
+        db=db
+    )
+
     result = await get_repository_pull_request_files(
         github_access_token=(
-            current_user.github_access_token
+            current_user.github_token
         ),
         github_owner=project.github_owner,
         github_repository=project.github_repository,
@@ -502,14 +520,17 @@ async def get_project_github_pull_request_diff(
     # Fetch actual diff
     # --------------------------------------------------------
 
+    github_token = get_github_access_token(
+    user=current_user,
+    db=db
+)
+
     result = await get_repository_pull_request_diff(
-        github_access_token=(
-            current_user.github_access_token
-        ),
-        github_owner=project.github_owner,
-        github_repository=project.github_repository,
-        pr_number=pr_number,
-    )
+    github_access_token=github_token,
+    github_owner=project.github_owner,
+    github_repository=project.github_repository,
+    pr_number=pr_number,
+)
 
     # --------------------------------------------------------
     # Handle GitHub errors
@@ -599,13 +620,18 @@ async def merge_project_github_pull_request(
             ),
         )
 
+    github_token = get_github_access_token(
+    user=current_user,
+    db=db
+)
+
     result = await merge_repository_pull_request(
-        github_access_token=current_user.github_access_token,
-        github_owner=project.github_owner,
-        github_repository=project.github_repository,
-        pr_number=pr_number,
-        merge_method="merge",
-    )
+    github_access_token=github_token,
+    github_owner=project.github_owner,
+    github_repository=project.github_repository,
+    pr_number=pr_number,
+    merge_method="merge",
+)
 
     if not result.get("success"):
         github_status = result.get("status_code", 502)
@@ -686,12 +712,17 @@ async def close_project_github_pull_request(
             ),
         )
 
+    github_token = get_github_access_token(
+    user=current_user,
+    db=db
+)
+
     result = await close_repository_pull_request(
-        github_access_token=current_user.github_access_token,
-        github_owner=project.github_owner,
-        github_repository=project.github_repository,
-        pr_number=pr_number,
-    )
+    github_access_token=github_token,
+    github_owner=project.github_owner,
+    github_repository=project.github_repository,
+    pr_number=pr_number,
+)
 
     if not result.get("success"):
         github_status = result.get("status_code", 502)

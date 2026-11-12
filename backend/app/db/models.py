@@ -2,11 +2,10 @@ import uuid
 
 from datetime import datetime
 
-from sqlalchemy import String, Boolean, DateTime
+from sqlalchemy import String, Boolean, DateTime, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.database import Base
-
 
 class User(Base):
 
@@ -89,6 +88,6 @@ class User(Base):
         nullable=False
     )
     github_access_token: Mapped[str | None] = mapped_column(
-    String(500),
+    Text,
     nullable=True
 )

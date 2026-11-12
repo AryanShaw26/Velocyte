@@ -1,6 +1,7 @@
 import uuid
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
+
 from urllib.parse import urlencode
 
 import httpx
@@ -14,7 +15,6 @@ from fastapi import (
 
 from fastapi.responses import RedirectResponse
 
-from jose import JWTError, jwt
 
 from sqlalchemy.orm import Session
 
@@ -39,8 +39,13 @@ from app.schemas.auth import (
     UserResponse,
     TokenResponse,
 )
+from app.services.oauth_state_service import (
+    create_oauth_state,
+    consume_oauth_state,
+)
 
 
+from datetime import datetime, timedelta, timezone
 router = APIRouter(
     prefix="/api/auth",
     tags=["Authentication"]
@@ -339,21 +344,12 @@ def update_profile(
 # ============================================================
 
 @router.get("/github")
-def github_login():
-
-    expire = (
-        datetime.now(timezone.utc)
-        + timedelta(minutes=10)
-    )
-
-    state = jwt.encode(
-        {
-            "type": "github_oauth_state",
-            "nonce": str(uuid.uuid4()),
-            "exp": expire,
-        },
-        settings.SECRET_KEY,
-        algorithm=JWT_ALGORITHM
+def github_login(
+    db: Session = Depends(get_db)
+):
+    state = create_oauth_state(
+        db=db,
+        purpose="login"
     )
 
     params = {
@@ -379,30 +375,13 @@ def github_login():
 
 @router.post("/github/connect")
 def github_connect(
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """
-    Start GitHub OAuth for an already authenticated
-    Velocyte user.
-
-    Unlike /github, this endpoint does NOT create or
-    switch Velocyte accounts.
-    """
-
-    expire = (
-        datetime.now(timezone.utc)
-        + timedelta(minutes=10)
-    )
-
-    state = jwt.encode(
-        {
-            "type": "github_connect_state",
-            "user_id": str(current_user.id),
-            "nonce": str(uuid.uuid4()),
-            "exp": expire,
-        },
-        settings.SECRET_KEY,
-        algorithm=JWT_ALGORITHM
+    state = create_oauth_state(
+        db=db,
+        purpose="account_link",
+        user_id=current_user.id
     )
 
     params = {
@@ -420,7 +399,6 @@ def github_connect(
         "authorization_url": github_authorization_url
     }
 
-
 # ============================================================
 # GITHUB OAUTH — CALLBACK
 # ============================================================
@@ -433,30 +411,42 @@ async def github_callback(
     db: Session = Depends(get_db)
 ):
 
+       # --------------------------------------------------------
+    # Validate and consume OAuth state
+    # --------------------------------------------------------
+
+    if not state:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="OAuth state is missing."
+        )
+
+    oauth_purpose, oauth_user_id = consume_oauth_state(
+        db=db,
+        raw_state=state
+    )
+
     # --------------------------------------------------------
     # User cancelled GitHub authorization
     # --------------------------------------------------------
 
     if error:
-
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"GitHub authorization failed: {error}"
+            detail="GitHub authorization was cancelled or denied."
         )
 
     if not code:
-
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="GitHub authorization code is missing"
+            detail="GitHub authorization code is missing."
         )
 
-    if not state:
-
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="OAuth state is missing"
-        )
+    oauth_type = (
+        "github_connect_state"
+        if oauth_purpose == "account_link"
+        else "github_oauth_state"
+    )
 
     # --------------------------------------------------------
     # Validate OAuth state
@@ -649,9 +639,7 @@ async def github_callback(
         # Get Velocyte user ID from signed OAuth state
         # ----------------------------------------------------
 
-        target_user_id = state_payload.get(
-            "user_id"
-        )
+        target_user_id = ouath_user_id
 
         if not target_user_id:
 
