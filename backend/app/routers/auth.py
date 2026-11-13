@@ -612,9 +612,13 @@ async def github_callback(
 
         github_user = github_user_response.json()
 
-        github_id = str(
-            github_user.get("id")
-        )
+        print("\n========== GITHUB ACCOUNT DEBUG ==========")
+        print("GitHub ID:", github_user.get("id"))
+        print("GitHub Username:", github_user.get("login"))
+        print("==========================================\n")
+
+        github_id = str(github_user.get("id"))
+        github_username = github_user.get("login")
 
         github_username = github_user.get(
             "login"
