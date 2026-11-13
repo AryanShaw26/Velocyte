@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { FolderKanban, Plus, Search, ArrowUpRight } from "lucide-react";
 
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/useAuth";
+
 import CreateProjectModal from "../components/projects/CreateProjectModal";
 
 import Sidebar from "../components/dashboard/Sidebar";
@@ -21,44 +22,93 @@ function Projects() {
 
   const [showCreateProject, setShowCreateProject] = useState(false);
 
-  const fetchProjects = async () => {
+  const fetchProjects = useCallback(async () => {
     if (!accessToken) {
-      setLoading(false);
-      return;
+        setProjects([]);
+        setLoading(false);
+        return;
     }
 
     try {
-      setLoading(true);
-      setError("");
+        const response = await fetch(
+            "http://127.0.0.1:8000/api/projects",
+            {
+                method: "GET",
+                headers: {
+                    Accept: "application/json",
+                    Authorization: `Bearer ${accessToken}`,
+                },
+            }
+        );
 
-      const response = await fetch("http://127.0.0.1:8000/api/projects", {
-        method: "GET",
+        if (!response.ok) {
+            throw new Error("Failed to fetch projects.");
+        }
 
-        headers: {
-          Accept: "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
-      });
+        const data = await response.json();
 
-      if (!response.ok) {
-        throw new Error("Failed to fetch projects.");
-      }
+        setProjects(data);
+        setError("");
 
-      const data = await response.json();
-
-      setProjects(data);
     } catch (error) {
-      console.error("Projects error:", error);
+        console.error("Projects error:", error);
+        setError("Unable to load your projects.");
 
-      setError("Unable to load your projects.");
     } finally {
-      setLoading(false);
+        setLoading(false);
     }
-  };
+}, [accessToken]);
 
-  useEffect(() => {
-    fetchProjects();
-  }, [accessToken]);
+useEffect(() => {
+    let cancelled = false;
+
+    const loadProjects = async () => {
+        if (!accessToken) {
+            return;
+        }
+
+        try {
+            const response = await fetch(
+                "http://127.0.0.1:8000/api/projects",
+                {
+                    headers: {
+                        Accept: "application/json",
+                        Authorization: `Bearer ${accessToken}`,
+                    },
+                    signal: AbortSignal.timeout(15000),
+                }
+            );
+
+            if (!response.ok) {
+                throw new Error("Failed to fetch projects.");
+            }
+
+            const data = await response.json();
+
+            if (!cancelled) {
+                setProjects(data);
+                setError("");
+            }
+
+        } catch (error) {
+            if (!cancelled) {
+                console.error("Projects error:", error);
+                setError("Unable to load your projects.");
+            }
+
+        } finally {
+            if (!cancelled) {
+                setLoading(false);
+            }
+        }
+    };
+
+    loadProjects();
+
+    return () => {
+        cancelled = true;
+    };
+}, [accessToken]);
 
   const filteredProjects = projects.filter((project) => {
     const searchValue = search.toLowerCase();

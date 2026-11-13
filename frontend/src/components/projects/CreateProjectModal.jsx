@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
 import { X, FolderPlus } from "lucide-react";
-
-import { useAuth } from "../../context/AuthContext";
-
+import { useAuth } from "../../context/useAuth";
 function CreateProjectModal({
   isOpen,
   onClose,
@@ -49,88 +47,71 @@ function CreateProjectModal({
   // ============================================
 
   useEffect(() => {
-    if (!isOpen) {
-      return;
+    if (!isOpen || !accessToken) {
+        return;
     }
 
-    if (!accessToken) {
-      setRepositories([]);
-      setRepositoriesError(
-        "You must be logged in to access GitHub repositories."
-      );
-      return;
-    }
+    let isMounted = true;
 
     const fetchRepositories = async () => {
-      try {
-        setRepositoriesLoading(true);
-        setRepositoriesError("");
-        setError("");
+        try {
+            setRepositoriesLoading(true);
+            setRepositoriesError("");
+            setError("");
 
-        const response = await fetch(
-          "http://127.0.0.1:8000/api/github/repositories",
-          {
-            method: "GET",
-
-            headers: {
-              Accept: "application/json",
-              Authorization: `Bearer ${accessToken}`,
-            },
-          }
-        );
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          let errorMessage =
-            "Failed to fetch GitHub repositories.";
-
-          if (typeof data.detail === "string") {
-            errorMessage = data.detail;
-          } else if (Array.isArray(data.detail)) {
-            errorMessage = data.detail
-              .map((item) => {
-                if (typeof item === "string") {
-                  return item;
+            const response = await fetch(
+                "http://127.0.0.1:8000/api/github/repositories",
+                {
+                    method: "GET",
+                    headers: {
+                        Accept: "application/json",
+                        Authorization: `Bearer ${accessToken}`,
+                    },
                 }
+            );
 
-                return (
-                  item.msg ||
-                  item.message ||
-                  JSON.stringify(item)
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(
+                    typeof data.detail === "string"
+                        ? data.detail
+                        : "Failed to fetch GitHub repositories."
                 );
-              })
-              .join(", ");
-          }
+            }
 
-          throw new Error(errorMessage);
+            if (isMounted) {
+                setRepositories(
+                    Array.isArray(data.repositories)
+                        ? data.repositories
+                        : []
+                );
+            }
+
+        } catch (error) {
+            console.error("GitHub repositories error:", error);
+
+            if (isMounted) {
+                setRepositories([]);
+                setRepositoriesError(
+                    error.message || "Unable to load GitHub repositories."
+                );
+            }
+
+        } finally {
+            if (isMounted) {
+                setRepositoriesLoading(false);
+            }
         }
-
-        setRepositories(
-          Array.isArray(data.repositories)
-            ? data.repositories
-            : []
-        );
-
-      } catch (error) {
-        console.error(
-          "GitHub repositories error:",
-          error
-        );
-
-        setRepositories([]);
-        setRepositoriesError(
-          error.message ||
-            "Unable to load GitHub repositories."
-        );
-
-      } finally {
-        setRepositoriesLoading(false);
-      }
     };
 
     fetchRepositories();
-  }, [isOpen, accessToken]);
+
+    return () => {
+        isMounted = false;
+    };
+
+}, [isOpen, accessToken]);
 
   // ============================================
   // DON'T RENDER WHEN MODAL IS CLOSED

@@ -7,7 +7,7 @@ import Dashboard from "./pages/Dashboard";
 
 import ProtectedRoute from "./routes/ProtectedRoute";
 
-import { AuthProvider } from "./context/AuthContext";
+import { AuthProvider } from "./context/AuthProvider";
 import Projects from "./pages/Projects";
 import ProjectDetails from "./pages/ProjectDetails";
 import Tasks from "./pages/Tasks";
@@ -16,6 +16,9 @@ import AIReviews from "./pages/AIReviews";
 import Analytics from "./pages/Analytics";
 import GitHubCallback from "./pages/auth/GitHubCallback";
 import GitHubConnectCallback from "./pages/auth/GitHubConnectCallback";
+import Settings from "../src/pages/Settings";
+
+
 function App() {
   return (
     <BrowserRouter>
@@ -41,6 +44,7 @@ function App() {
 
           <Route element={<ProtectedRoute />}>
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/settings" element={<Settings />} />
           </Route>
           <Route path="/projects" element={<Projects />} />
           <Route path="/projects/:projectId" element={<ProjectDetails />} />

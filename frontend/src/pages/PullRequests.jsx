@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 
 import Sidebar from "../components/dashboard/Sidebar";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/useAuth";
 
 function PullRequests() {
   // ============================================================
@@ -44,11 +44,9 @@ function PullRequests() {
 
   const [selectedPR, setSelectedPR] = useState(null);
 
-  const [loadingPRDetails, setLoadingPRDetails] =
-    useState(false);
+  const [loadingPRDetails, setLoadingPRDetails] = useState(false);
 
-  const [prDetailsError, setPrDetailsError] =
-    useState("");
+  const [prDetailsError, setPrDetailsError] = useState("");
 
   // ============================================================
   // PR CODE CHANGES
@@ -88,11 +86,9 @@ function PullRequests() {
   // PAGE STATE
   // ============================================================
 
-  const [loadingProjects, setLoadingProjects] =
-    useState(true);
+  const [loadingProjects, setLoadingProjects] = useState(true);
 
-  const [loadingPRs, setLoadingPRs] =
-    useState(false);
+  const [loadingPRs, setLoadingPRs] = useState(false);
 
   const [error, setError] = useState("");
   const [prError, setPrError] = useState("");
@@ -120,25 +116,18 @@ function PullRequests() {
       setLoadingProjects(true);
       setError("");
 
-      const response = await fetch(
-        "http://127.0.0.1:8000/api/projects",
-        {
-          method: "GET",
-          headers: getHeaders(),
-        }
-      );
+      const response = await fetch("http://127.0.0.1:8000/api/projects", {
+        method: "GET",
+        headers: getHeaders(),
+      });
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(
-          data.detail || "Failed to load projects."
-        );
+        throw new Error(data.detail || "Failed to load projects.");
       }
 
-      const projectList = Array.isArray(data)
-        ? data
-        : data.projects || [];
+      const projectList = Array.isArray(data) ? data : data.projects || [];
 
       setProjects(projectList);
 
@@ -148,25 +137,17 @@ function PullRequests() {
           (project) =>
             project.github_repo_id &&
             project.github_owner &&
-            project.github_repository
+            project.github_repository,
         );
 
         if (githubProject) {
-          setSelectedProject(
-            githubProject.id
-          );
+          setSelectedProject(githubProject.id);
         }
       }
     } catch (error) {
-      console.error(
-        "Fetch projects error:",
-        error
-      );
+      console.error("Fetch projects error:", error);
 
-      setError(
-        error.message ||
-          "Unable to load projects."
-      );
+      setError(error.message || "Unable to load projects.");
     } finally {
       setLoadingProjects(false);
     }
@@ -176,9 +157,7 @@ function PullRequests() {
   // FETCH REAL GITHUB PULL REQUESTS
   // ============================================================
 
-  const fetchGithubPullRequests = async (
-    projectId = selectedProject
-  ) => {
+  const fetchGithubPullRequests = async (projectId = selectedProject) => {
     if (!accessToken || !projectId) {
       setPullRequests([]);
       return;
@@ -193,37 +172,26 @@ function PullRequests() {
         {
           method: "GET",
           headers: getHeaders(),
-        }
+        },
       );
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(
-          data.detail ||
-            "Failed to load GitHub pull requests."
-        );
+        throw new Error(data.detail || "Failed to load GitHub pull requests.");
       }
 
-      const githubPRs = Array.isArray(
-        data.pull_requests
-      )
+      const githubPRs = Array.isArray(data.pull_requests)
         ? data.pull_requests
         : [];
 
       setPullRequests(githubPRs);
     } catch (error) {
-      console.error(
-        "Fetch GitHub pull requests error:",
-        error
-      );
+      console.error("Fetch GitHub pull requests error:", error);
 
       setPullRequests([]);
 
-      setPrError(
-        error.message ||
-          "Unable to load GitHub pull requests."
-      );
+      setPrError(error.message || "Unable to load GitHub pull requests.");
     } finally {
       setLoadingPRs(false);
     }
@@ -233,14 +201,8 @@ function PullRequests() {
   // FETCH ONE GITHUB PR
   // ============================================================
 
-  const fetchPullRequestDetails = async (
-    prNumber
-  ) => {
-    if (
-      !accessToken ||
-      !selectedProject ||
-      !prNumber
-    ) {
+  const fetchPullRequestDetails = async (prNumber) => {
+    if (!accessToken || !selectedProject || !prNumber) {
       return;
     }
 
@@ -253,30 +215,21 @@ function PullRequests() {
         {
           method: "GET",
           headers: getHeaders(),
-        }
+        },
       );
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(
-          data.detail ||
-            "Failed to load pull request details."
-        );
+        throw new Error(data.detail || "Failed to load pull request details.");
       }
 
-      setSelectedPR(
-        data.pull_request
-      );
+      setSelectedPR(data.pull_request);
     } catch (error) {
-      console.error(
-        "Fetch PR details error:",
-        error
-      );
+      console.error("Fetch PR details error:", error);
 
       setPrDetailsError(
-        error.message ||
-          "Unable to load pull request details."
+        error.message || "Unable to load pull request details.",
       );
     } finally {
       setLoadingPRDetails(false);
@@ -289,7 +242,7 @@ function PullRequests() {
 
   const fetchPullRequestChanges = async (
     prNumber,
-    projectId = selectedProject
+    projectId = selectedProject,
   ) => {
     if (!accessToken || !projectId || !prNumber) {
       return;
@@ -301,57 +254,41 @@ function PullRequests() {
       setChangedFiles([]);
       setPrDiff("");
 
-      const [filesResponse, diffResponse] =
-        await Promise.all([
-          fetch(
-            `http://127.0.0.1:8000/api/github/projects/${projectId}/pull-requests/${prNumber}/files`,
-            {
-              method: "GET",
-              headers: getHeaders(),
-            }
-          ),
-          fetch(
-            `http://127.0.0.1:8000/api/github/projects/${projectId}/pull-requests/${prNumber}/diff`,
-            {
-              method: "GET",
-              headers: getHeaders(),
-            }
-          ),
-        ]);
+      const [filesResponse, diffResponse] = await Promise.all([
+        fetch(
+          `http://127.0.0.1:8000/api/github/projects/${projectId}/pull-requests/${prNumber}/files`,
+          {
+            method: "GET",
+            headers: getHeaders(),
+          },
+        ),
+        fetch(
+          `http://127.0.0.1:8000/api/github/projects/${projectId}/pull-requests/${prNumber}/diff`,
+          {
+            method: "GET",
+            headers: getHeaders(),
+          },
+        ),
+      ]);
 
       const filesData = await filesResponse.json();
       const diffData = await diffResponse.json();
 
       if (!filesResponse.ok) {
-        throw new Error(
-          filesData.detail || "Failed to load changed files."
-        );
+        throw new Error(filesData.detail || "Failed to load changed files.");
       }
 
       if (!diffResponse.ok) {
-        throw new Error(
-          diffData.detail || "Failed to load pull request diff."
-        );
+        throw new Error(diffData.detail || "Failed to load pull request diff.");
       }
 
-      setChangedFiles(
-        Array.isArray(filesData.files)
-          ? filesData.files
-          : []
-      );
+      setChangedFiles(Array.isArray(filesData.files) ? filesData.files : []);
 
-      setPrDiff(
-        typeof diffData.diff === "string"
-          ? diffData.diff
-          : ""
-      );
+      setPrDiff(typeof diffData.diff === "string" ? diffData.diff : "");
     } catch (error) {
       console.error("Fetch PR changes error:", error);
 
-      setChangesError(
-        error.message ||
-          "Unable to load pull request changes."
-      );
+      setChangesError(error.message || "Unable to load pull request changes.");
     } finally {
       setLoadingChanges(false);
     }
@@ -379,24 +316,20 @@ function PullRequests() {
             Accept: "application/json",
             Authorization: `Bearer ${accessToken}`,
           },
-        }
+        },
       );
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(
-          data.detail || "Failed to run AI review."
-        );
+        throw new Error(data.detail || "Failed to run AI review.");
       }
 
       setAIReview(data);
     } catch (error) {
       console.error("AI review error:", error);
 
-      setAIReviewError(
-        error.message || "Unable to run AI review."
-      );
+      setAIReviewError(error.message || "Unable to run AI review.");
     } finally {
       setRunningAIReview(false);
     }
@@ -427,12 +360,7 @@ function PullRequests() {
   // ============================================================
 
   const executePRAction = async () => {
-    if (
-      !accessToken ||
-      !selectedProject ||
-      !selectedPR ||
-      !prAction
-    ) {
+    if (!accessToken || !selectedProject || !selectedPR || !prAction) {
       return;
     }
 
@@ -453,10 +381,7 @@ function PullRequests() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(
-          data.detail ||
-            `Failed to ${prAction} pull request.`
-        );
+        throw new Error(data.detail || `Failed to ${prAction} pull request.`);
       }
 
       // Close confirmation modal immediately after GitHub accepts
@@ -470,15 +395,9 @@ function PullRequests() {
       await fetchGithubPullRequests(selectedProject);
       await fetchPullRequestDetails(selectedPR.number);
     } catch (error) {
-      console.error(
-        `GitHub PR ${prAction} error:`,
-        error
-      );
+      console.error(`GitHub PR ${prAction} error:`, error);
 
-      setPRActionError(
-        error.message ||
-          `Unable to ${prAction} pull request.`
-      );
+      setPRActionError(error.message || `Unable to ${prAction} pull request.`);
     } finally {
       setProcessingPRAction(false);
     }
@@ -508,13 +427,9 @@ function PullRequests() {
     setAIReview(null);
     setAIReviewError("");
 
-    await fetchPullRequestDetails(
-      pullRequest.number
-    );
+    await fetchPullRequestDetails(pullRequest.number);
 
-    await fetchPullRequestChanges(
-      pullRequest.number
-    );
+    await fetchPullRequestChanges(pullRequest.number);
   };
 
   // ============================================================
@@ -548,28 +463,17 @@ function PullRequests() {
     if (selectedProject) {
       setSelectedPR(null);
 
-      fetchGithubPullRequests(
-        selectedProject
-      );
+      fetchGithubPullRequests(selectedProject);
     }
-  }, [
-    selectedProject,
-    accessToken,
-  ]);
+  }, [selectedProject, accessToken]);
 
   // ============================================================
   // SELECTED PROJECT
   // ============================================================
 
   const currentProject = useMemo(() => {
-    return projects.find(
-      (project) =>
-        project.id === selectedProject
-    );
-  }, [
-    projects,
-    selectedProject,
-  ]);
+    return projects.find((project) => project.id === selectedProject);
+  }, [projects, selectedProject]);
 
   // ============================================================
   // PR STATUS
@@ -591,9 +495,7 @@ function PullRequests() {
       return "merged";
     }
 
-    if (
-      pullRequest.state === "closed"
-    ) {
+    if (pullRequest.state === "closed") {
       return "closed";
     }
 
@@ -623,59 +525,28 @@ function PullRequests() {
   // ============================================================
 
   const filteredPullRequests = useMemo(() => {
-    const searchValue =
-      search.toLowerCase().trim();
+    const searchValue = search.toLowerCase().trim();
 
-    return pullRequests.filter(
-      (pullRequest) => {
-        const status =
-          getPRStatus(
-            pullRequest
-          );
+    return pullRequests.filter((pullRequest) => {
+      const status = getPRStatus(pullRequest);
 
-        const title =
-          (
-            pullRequest.title || ""
-          ).toLowerCase();
+      const title = (pullRequest.title || "").toLowerCase();
 
-        const author =
-          (
-            pullRequest.author || ""
-          ).toLowerCase();
+      const author = (pullRequest.author || "").toLowerCase();
 
-        const branch =
-          (
-            pullRequest.head_branch ||
-            ""
-          ).toLowerCase();
+      const branch = (pullRequest.head_branch || "").toLowerCase();
 
-        const matchesSearch =
-          !searchValue ||
-          title.includes(
-            searchValue
-          ) ||
-          author.includes(
-            searchValue
-          ) ||
-          branch.includes(
-            searchValue
-          );
+      const matchesSearch =
+        !searchValue ||
+        title.includes(searchValue) ||
+        author.includes(searchValue) ||
+        branch.includes(searchValue);
 
-        const matchesStatus =
-          statusFilter === "all" ||
-          status === statusFilter;
+      const matchesStatus = statusFilter === "all" || status === statusFilter;
 
-        return (
-          matchesSearch &&
-          matchesStatus
-        );
-      }
-    );
-  }, [
-    pullRequests,
-    search,
-    statusFilter,
-  ]);
+      return matchesSearch && matchesStatus;
+    });
+  }, [pullRequests, search, statusFilter]);
 
   // ============================================================
   // GROUP PRs BY STATUS
@@ -683,28 +554,19 @@ function PullRequests() {
 
   const openPullRequests = useMemo(() => {
     return filteredPullRequests.filter(
-      (pullRequest) =>
-        getPRStatus(
-          pullRequest
-        ) === "open"
+      (pullRequest) => getPRStatus(pullRequest) === "open",
     );
   }, [filteredPullRequests]);
 
   const mergedPullRequests = useMemo(() => {
     return filteredPullRequests.filter(
-      (pullRequest) =>
-        getPRStatus(
-          pullRequest
-        ) === "merged"
+      (pullRequest) => getPRStatus(pullRequest) === "merged",
     );
   }, [filteredPullRequests]);
 
   const closedPullRequests = useMemo(() => {
     return filteredPullRequests.filter(
-      (pullRequest) =>
-        getPRStatus(
-          pullRequest
-        ) === "closed"
+      (pullRequest) => getPRStatus(pullRequest) === "closed",
     );
   }, [filteredPullRequests]);
 
@@ -718,16 +580,11 @@ function PullRequests() {
     }
 
     try {
-      return new Date(
-        date
-      ).toLocaleDateString(
-        undefined,
-        {
-          year: "numeric",
-          month: "short",
-          day: "numeric",
-        }
-      );
+      return new Date(date).toLocaleDateString(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      });
     } catch {
       return "Unknown date";
     }
@@ -744,7 +601,6 @@ function PullRequests() {
 
         <main className="ml-64 min-h-screen p-8">
           <div className="mx-auto max-w-7xl">
-
             <div className="h-8 w-64 animate-pulse rounded bg-white/10" />
 
             <div className="mt-3 h-5 w-96 animate-pulse rounded bg-white/5" />
@@ -752,16 +608,13 @@ function PullRequests() {
             <div className="mt-8 h-14 animate-pulse rounded-xl bg-[#111116]" />
 
             <div className="mt-5 space-y-3">
-              {[1, 2, 3].map(
-                (item) => (
-                  <div
-                    key={item}
-                    className="h-28 animate-pulse rounded-xl bg-[#111116]"
-                  />
-                )
-              )}
+              {[1, 2, 3].map((item) => (
+                <div
+                  key={item}
+                  className="h-28 animate-pulse rounded-xl bg-[#111116]"
+                />
+              ))}
             </div>
-
           </div>
         </main>
       </div>
@@ -773,25 +626,19 @@ function PullRequests() {
   // ============================================================
 
   if (selectedPR) {
-    const status =
-      getPRStatus(selectedPR);
+    const status = getPRStatus(selectedPR);
 
     return (
       <div className="min-h-screen bg-[#07070a] text-white">
-
         <Sidebar />
 
         <main className="ml-64 min-h-screen p-8">
-
           <div className="mx-auto max-w-5xl">
-
             {/* BACK */}
 
             <button
               type="button"
-              onClick={
-                closePRDetails
-              }
+              onClick={closePRDetails}
               className="mb-6 flex items-center gap-2 text-sm text-gray-400 transition hover:text-white"
             >
               <ArrowLeft size={17} />
@@ -801,17 +648,12 @@ function PullRequests() {
             {/* PR DETAILS CARD */}
 
             <div className="rounded-2xl border border-white/10 bg-[#111116]">
-
               {/* HEADER */}
 
               <div className="border-b border-white/10 p-6">
-
                 <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
-
                   <div className="min-w-0">
-
                     <div className="flex items-center gap-3">
-
                       <GitPullRequest
                         size={24}
                         className="shrink-0 text-purple-400"
@@ -821,23 +663,16 @@ function PullRequests() {
                         #{selectedPR.number}
                       </span>
 
-                      <h1 className="text-2xl font-bold">
-                        {selectedPR.title}
-                      </h1>
-
+                      <h1 className="text-2xl font-bold">{selectedPR.title}</h1>
                     </div>
 
                     <div className="mt-4 flex flex-wrap items-center gap-3">
-
                       <span
                         className={`rounded-full px-3 py-1 text-xs font-medium ${getStatusStyles(
-                          status
+                          status,
                         )}`}
                       >
-                        {status
-                          .charAt(0)
-                          .toUpperCase() +
-                          status.slice(1)}
+                        {status.charAt(0).toUpperCase() + status.slice(1)}
                       </span>
 
                       {selectedPR.draft && (
@@ -845,118 +680,75 @@ function PullRequests() {
                           Draft
                         </span>
                       )}
-
                     </div>
-
                   </div>
 
                   <button
                     type="button"
-                    onClick={
-                      closePRDetails
-                    }
+                    onClick={closePRDetails}
                     className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-gray-500 transition hover:bg-white/5 hover:text-white"
                   >
                     <X size={19} />
                   </button>
-
                 </div>
-
               </div>
 
               {/* PR METADATA */}
 
               <div className="grid gap-4 border-b border-white/10 p-6 sm:grid-cols-2 lg:grid-cols-4">
-
                 <div>
-
-                  <p className="text-xs text-gray-500">
-                    Author
-                  </p>
+                  <p className="text-xs text-gray-500">Author</p>
 
                   <div className="mt-2 flex items-center gap-2 text-sm text-gray-300">
                     <User size={15} />
 
-                    {selectedPR.author ||
-                      "Unknown"}
+                    {selectedPR.author || "Unknown"}
                   </div>
-
                 </div>
 
                 <div>
-
-                  <p className="text-xs text-gray-500">
-                    Branch
-                  </p>
+                  <p className="text-xs text-gray-500">Branch</p>
 
                   <div className="mt-2 flex items-center gap-2 text-sm text-gray-300">
-
                     <GitBranch size={15} />
 
-                    <span className="truncate">
-                      {
-                        selectedPR.head_branch
-                      }
-                    </span>
-
+                    <span className="truncate">{selectedPR.head_branch}</span>
                   </div>
 
                   <p className="ml-5 mt-1 text-xs text-gray-600">
-                    →{" "}
-                    {
-                      selectedPR.base_branch
-                    }
+                    → {selectedPR.base_branch}
                   </p>
-
                 </div>
 
                 <div>
-
-                  <p className="text-xs text-gray-500">
-                    Created
-                  </p>
+                  <p className="text-xs text-gray-500">Created</p>
 
                   <div className="mt-2 flex items-center gap-2 text-sm text-gray-300">
-
                     <Calendar size={15} />
 
-                    {formatDate(
-                      selectedPR.created_at
-                    )}
-
+                    {formatDate(selectedPR.created_at)}
                   </div>
-
                 </div>
 
                 <div>
-
-                  <p className="text-xs text-gray-500">
-                    Files changed
-                  </p>
+                  <p className="text-xs text-gray-500">Files changed</p>
 
                   <div className="mt-2 flex items-center gap-2 text-sm text-gray-300">
-
                     <FileCode2 size={15} />
 
-                    {selectedPR.changed_files ??
-                      "—"}
-
+                    {selectedPR.changed_files ?? "—"}
                   </div>
-
                 </div>
-
               </div>
 
               {/* DESCRIPTION */}
 
               <div className="border-b border-white/10 p-6">
-
                 <h2 className="mb-3 text-sm font-semibold text-gray-200">
                   Description
                 </h2>
 
                 <div className="rounded-xl border border-white/10 bg-[#0b0b0f] p-5">
-
                   {selectedPR.body ? (
                     <p className="whitespace-pre-wrap text-sm leading-7 text-gray-400">
                       {selectedPR.body}
@@ -966,60 +758,41 @@ function PullRequests() {
                       No description provided.
                     </p>
                   )}
-
                 </div>
-
               </div>
 
               {/* CODE CHANGES */}
 
               <div className="border-b border-white/10 p-6">
-
                 <h2 className="mb-4 text-sm font-semibold text-gray-200">
                   Code Changes
                 </h2>
 
                 <div className="grid gap-4 sm:grid-cols-3">
-
                   <div className="rounded-xl border border-white/10 bg-[#0b0b0f] p-4">
-
-                    <p className="text-xs text-gray-500">
-                      Additions
-                    </p>
+                    <p className="text-xs text-gray-500">Additions</p>
 
                     <p className="mt-2 text-xl font-semibold text-emerald-400">
                       +{selectedPR.additions ?? 0}
                     </p>
-
                   </div>
 
                   <div className="rounded-xl border border-white/10 bg-[#0b0b0f] p-4">
-
-                    <p className="text-xs text-gray-500">
-                      Deletions
-                    </p>
+                    <p className="text-xs text-gray-500">Deletions</p>
 
                     <p className="mt-2 text-xl font-semibold text-red-400">
                       -{selectedPR.deletions ?? 0}
                     </p>
-
                   </div>
 
                   <div className="rounded-xl border border-white/10 bg-[#0b0b0f] p-4">
-
-                    <p className="text-xs text-gray-500">
-                      Changed files
-                    </p>
+                    <p className="text-xs text-gray-500">Changed files</p>
 
                     <p className="mt-2 text-xl font-semibold text-white">
-                      {selectedPR.changed_files ??
-                        0}
+                      {selectedPR.changed_files ?? 0}
                     </p>
-
                   </div>
-
                 </div>
-
               </div>
 
               {/* ==================================================
@@ -1027,7 +800,6 @@ function PullRequests() {
               ================================================== */}
 
               <div className="border-b border-white/10 p-6">
-
                 <div className="mb-4 flex items-center justify-between">
                   <div>
                     <h2 className="text-sm font-semibold text-gray-200">
@@ -1077,10 +849,9 @@ function PullRequests() {
                   changedFiles.length > 0 && (
                     <div className="space-y-2">
                       {changedFiles.map((file) => {
-                        const isExpanded =
-                          Boolean(
-                            expandedFiles[file.filename]
-                          );
+                        const isExpanded = Boolean(
+                          expandedFiles[file.filename],
+                        );
 
                         return (
                           <div
@@ -1089,11 +860,7 @@ function PullRequests() {
                           >
                             <button
                               type="button"
-                              onClick={() =>
-                                toggleFile(
-                                  file.filename
-                                )
-                              }
+                              onClick={() => toggleFile(file.filename)}
                               className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left transition hover:bg-white/[0.025]"
                             >
                               <div className="flex min-w-0 items-center gap-3">
@@ -1120,26 +887,22 @@ function PullRequests() {
                                 </span>
 
                                 <span className="text-xs text-gray-500">
-                                  {isExpanded
-                                    ? "Hide"
-                                    : "View"}
+                                  {isExpanded ? "Hide" : "View"}
                                 </span>
                               </div>
                             </button>
 
-                            {isExpanded &&
-                              file.patch && (
-                                <pre className="max-h-[500px] overflow-auto border-t border-white/10 bg-[#07070a] p-4 text-xs leading-6 text-gray-400">
-                                  <code>{file.patch}</code>
-                                </pre>
-                              )}
+                            {isExpanded && file.patch && (
+                              <pre className="max-h-[500px] overflow-auto border-t border-white/10 bg-[#07070a] p-4 text-xs leading-6 text-gray-400">
+                                <code>{file.patch}</code>
+                              </pre>
+                            )}
 
-                            {isExpanded &&
-                              !file.patch && (
-                                <div className="border-t border-white/10 p-4 text-xs text-gray-600">
-                                  GitHub did not provide a patch for this file.
-                                </div>
-                              )}
+                            {isExpanded && !file.patch && (
+                              <div className="border-t border-white/10 p-4 text-xs text-gray-600">
+                                GitHub did not provide a patch for this file.
+                              </div>
+                            )}
                           </div>
                         );
                       })}
@@ -1152,7 +915,6 @@ function PullRequests() {
               ================================================== */}
 
               <div className="border-b border-white/10 p-6">
-
                 <div className="mb-4">
                   <h2 className="text-sm font-semibold text-gray-200">
                     Code Diff
@@ -1168,66 +930,50 @@ function PullRequests() {
                   </div>
                 )}
 
-                {!loadingChanges &&
-                  !changesError &&
-                  prDiff && (
-                    <div className="overflow-hidden rounded-xl border border-white/10 bg-[#07070a]">
-                      <div className="flex items-center justify-between border-b border-white/10 bg-[#0b0b0f] px-4 py-3">
-                        <span className="text-xs font-medium text-gray-400">
-                          GitHub Pull Request Diff
-                        </span>
+                {!loadingChanges && !changesError && prDiff && (
+                  <div className="overflow-hidden rounded-xl border border-white/10 bg-[#07070a]">
+                    <div className="flex items-center justify-between border-b border-white/10 bg-[#0b0b0f] px-4 py-3">
+                      <span className="text-xs font-medium text-gray-400">
+                        GitHub Pull Request Diff
+                      </span>
 
-                        <span className="text-xs text-gray-600">
-                          {prDiff.split("\n").length} lines
-                        </span>
-                      </div>
-
-                      <pre className="max-h-[650px] overflow-auto p-5 text-xs leading-6 text-gray-400">
-                        <code>{prDiff}</code>
-                      </pre>
+                      <span className="text-xs text-gray-600">
+                        {prDiff.split("\n").length} lines
+                      </span>
                     </div>
-                  )}
 
-                {!loadingChanges &&
-                  !changesError &&
-                  !prDiff && (
-                    <div className="rounded-xl border border-white/10 bg-[#0b0b0f] p-5 text-sm text-gray-500">
-                      No diff was returned by GitHub.
-                    </div>
-                  )}
+                    <pre className="max-h-[650px] overflow-auto p-5 text-xs leading-6 text-gray-400">
+                      <code>{prDiff}</code>
+                    </pre>
+                  </div>
+                )}
+
+                {!loadingChanges && !changesError && !prDiff && (
+                  <div className="rounded-xl border border-white/10 bg-[#0b0b0f] p-5 text-sm text-gray-500">
+                    No diff was returned by GitHub.
+                  </div>
+                )}
               </div>
 
               {/* MERGED INFORMATION */}
 
               {status === "merged" && (
                 <div className="border-b border-white/10 p-6">
-
                   <div className="flex items-center gap-3 rounded-xl border border-purple-500/20 bg-purple-500/5 p-4">
-
-                    <GitMerge
-                      size={20}
-                      className="text-purple-400"
-                    />
+                    <GitMerge size={20} className="text-purple-400" />
 
                     <div>
-
                       <p className="text-sm font-medium text-purple-300">
                         Pull request merged
                       </p>
 
                       {selectedPR.merged_at && (
                         <p className="mt-1 text-xs text-gray-500">
-                          Merged on{" "}
-                          {formatDate(
-                            selectedPR.merged_at
-                          )}
+                          Merged on {formatDate(selectedPR.merged_at)}
                         </p>
                       )}
-
                     </div>
-
                   </div>
-
                 </div>
               )}
 
@@ -1235,9 +981,7 @@ function PullRequests() {
 
               {status === "closed" && (
                 <div className="border-b border-white/10 p-6">
-
                   <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-4">
-
                     <p className="text-sm font-medium text-red-300">
                       Pull request closed
                     </p>
@@ -1245,9 +989,7 @@ function PullRequests() {
                     <p className="mt-1 text-xs text-gray-500">
                       This pull request was closed without being merged.
                     </p>
-
                   </div>
-
                 </div>
               )}
 
@@ -1257,54 +999,42 @@ function PullRequests() {
 
               {aiReview && (
                 <div className="border-b border-white/10 p-6">
-
                   <div className="mb-5 flex items-center justify-between gap-4">
-
                     <div>
                       <h2 className="text-sm font-semibold text-gray-200">
                         AI Code Review
                       </h2>
 
                       <p className="mt-1 text-xs text-gray-500">
-                        Automated review generated from the GitHub pull request changes.
+                        Automated review generated from the GitHub pull request
+                        changes.
                       </p>
                     </div>
 
                     <div className="rounded-xl border border-purple-500/20 bg-purple-500/5 px-4 py-3 text-center">
-
-                      <p className="text-xs text-gray-500">
-                        Score
-                      </p>
+                      <p className="text-xs text-gray-500">Score</p>
 
                       <p className="mt-1 text-2xl font-bold text-purple-400">
                         {aiReview.score ?? "—"}
-                        {aiReview.score !== null &&
-                        aiReview.score !== undefined
+                        {aiReview.score !== null && aiReview.score !== undefined
                           ? "/100"
                           : ""}
                       </p>
-
                     </div>
-
                   </div>
 
                   <div className="rounded-xl border border-white/10 bg-[#0b0b0f] p-5">
-
                     <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
                       Summary
                     </p>
 
                     <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-gray-300">
-                      {aiReview.summary ||
-                        "No AI review summary was returned."}
+                      {aiReview.summary || "No AI review summary was returned."}
                     </p>
-
                   </div>
 
                   <div className="mt-5">
-
                     <div className="mb-3 flex items-center justify-between">
-
                       <div>
                         <h3 className="text-sm font-semibold text-gray-200">
                           Findings
@@ -1317,132 +1047,101 @@ function PullRequests() {
 
                       <span className="rounded-full bg-white/5 px-3 py-1 text-xs text-gray-400">
                         {(aiReview.findings || []).length} finding
-                        {(aiReview.findings || []).length !== 1
-                          ? "s"
-                          : ""}
+                        {(aiReview.findings || []).length !== 1 ? "s" : ""}
                       </span>
-
                     </div>
 
                     {(aiReview.findings || []).length === 0 ? (
-
                       <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-5">
-
                         <p className="text-sm font-medium text-emerald-300">
                           No issues found
                         </p>
 
                         <p className="mt-1 text-xs text-gray-500">
-                          The AI reviewer did not identify any supported issues in the submitted changes.
+                          The AI reviewer did not identify any supported issues
+                          in the submitted changes.
                         </p>
-
                       </div>
-
                     ) : (
-
                       <div className="space-y-3">
+                        {(aiReview.findings || []).map((finding, index) => {
+                          const severity = (
+                            finding.severity || "medium"
+                          ).toLowerCase();
 
-                        {(aiReview.findings || []).map(
-                          (finding, index) => {
-
-                            const severity = (
-                              finding.severity || "medium"
-                            ).toLowerCase();
-
-                            const severityClass =
-                              severity === "critical"
-                                ? "border-red-500/30 bg-red-500/5 text-red-300"
-                                : severity === "high"
+                          const severityClass =
+                            severity === "critical"
+                              ? "border-red-500/30 bg-red-500/5 text-red-300"
+                              : severity === "high"
                                 ? "border-orange-500/30 bg-orange-500/5 text-orange-300"
                                 : severity === "low"
-                                ? "border-blue-500/30 bg-blue-500/5 text-blue-300"
-                                : "border-yellow-500/30 bg-yellow-500/5 text-yellow-300";
+                                  ? "border-blue-500/30 bg-blue-500/5 text-blue-300"
+                                  : "border-yellow-500/30 bg-yellow-500/5 text-yellow-300";
 
-                            return (
-                              <div
-                                key={
-                                  finding.id ||
-                                  `${finding.filename}-${index}`
-                                }
-                                className="rounded-xl border border-white/10 bg-[#0b0b0f] p-5"
-                              >
+                          return (
+                            <div
+                              key={finding.id || `${finding.filename}-${index}`}
+                              className="rounded-xl border border-white/10 bg-[#0b0b0f] p-5"
+                            >
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span
+                                  className={`rounded-full border px-2.5 py-1 text-xs font-medium uppercase ${severityClass}`}
+                                >
+                                  {severity}
+                                </span>
 
-                                <div className="flex flex-wrap items-center gap-2">
-
-                                  <span
-                                    className={`rounded-full border px-2.5 py-1 text-xs font-medium uppercase ${severityClass}`}
-                                  >
-                                    {severity}
+                                {finding.filename && (
+                                  <span className="rounded-full bg-white/5 px-2.5 py-1 text-xs text-gray-400">
+                                    {finding.filename}
                                   </span>
-
-                                  {finding.filename && (
-                                    <span className="rounded-full bg-white/5 px-2.5 py-1 text-xs text-gray-400">
-                                      {finding.filename}
-                                    </span>
-                                  )}
-
-                                  {finding.line_reference && (
-                                    <span className="rounded-full bg-white/5 px-2.5 py-1 text-xs text-gray-500">
-                                      {finding.line_reference}
-                                    </span>
-                                  )}
-
-                                </div>
-
-                                <h4 className="mt-4 text-sm font-semibold text-white">
-                                  {finding.issue ||
-                                    "Review finding"}
-                                </h4>
-
-                                {finding.explanation && (
-                                  <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-gray-400">
-                                    {finding.explanation}
-                                  </p>
                                 )}
 
-                                {finding.recommendation && (
-                                  <div className="mt-4 rounded-lg border border-purple-500/10 bg-purple-500/5 p-4">
-
-                                    <p className="text-xs font-medium text-purple-300">
-                                      Recommendation
-                                    </p>
-
-                                    <p className="mt-1 text-sm leading-6 text-gray-400">
-                                      {finding.recommendation}
-                                    </p>
-
-                                  </div>
+                                {finding.line_reference && (
+                                  <span className="rounded-full bg-white/5 px-2.5 py-1 text-xs text-gray-500">
+                                    {finding.line_reference}
+                                  </span>
                                 )}
-
                               </div>
-                            );
-                          }
-                        )}
 
+                              <h4 className="mt-4 text-sm font-semibold text-white">
+                                {finding.issue || "Review finding"}
+                              </h4>
+
+                              {finding.explanation && (
+                                <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-gray-400">
+                                  {finding.explanation}
+                                </p>
+                              )}
+
+                              {finding.recommendation && (
+                                <div className="mt-4 rounded-lg border border-purple-500/10 bg-purple-500/5 p-4">
+                                  <p className="text-xs font-medium text-purple-300">
+                                    Recommendation
+                                  </p>
+
+                                  <p className="mt-1 text-sm leading-6 text-gray-400">
+                                    {finding.recommendation}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
-
                     )}
-
                   </div>
-
                 </div>
               )}
 
               {aiReviewError && (
                 <div className="border-b border-white/10 p-6">
-
                   <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-4">
-
                     <p className="text-sm font-medium text-red-300">
                       AI review failed
                     </p>
 
-                    <p className="mt-1 text-sm text-red-400">
-                      {aiReviewError}
-                    </p>
-
+                    <p className="mt-1 text-sm text-red-400">{aiReviewError}</p>
                   </div>
-
                 </div>
               )}
 
@@ -1456,9 +1155,7 @@ function PullRequests() {
                     <p className="text-sm font-medium text-red-300">
                       GitHub action failed
                     </p>
-                    <p className="mt-1 text-sm text-red-400">
-                      {prActionError}
-                    </p>
+                    <p className="mt-1 text-sm text-red-400">{prActionError}</p>
                   </div>
                 </div>
               )}
@@ -1466,11 +1163,8 @@ function PullRequests() {
               {/* ACTIONS */}
 
               <div className="flex flex-col gap-3 p-6 sm:flex-row sm:items-center sm:justify-between">
-
                 <a
-                  href={
-                    selectedPR.html_url
-                  }
+                  href={selectedPR.html_url}
                   target="_blank"
                   rel="noreferrer"
                   className="flex items-center justify-center gap-2 rounded-lg border border-white/10 px-5 py-3 text-sm font-medium text-gray-300 transition hover:bg-white/5 hover:text-white"
@@ -1483,43 +1177,27 @@ function PullRequests() {
 
                 {status === "open" && (
                   <div className="flex flex-col gap-3 sm:flex-row">
-
                     {/* AI REVIEW */}
 
                     <button
                       type="button"
-                      onClick={() =>
-                        runAIReview(selectedPR.number)
-                      }
-                      disabled={
-                        runningAIReview ||
-                        processingPRAction
-                      }
+                      onClick={() => runAIReview(selectedPR.number)}
+                      disabled={runningAIReview || processingPRAction}
                       className="flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-purple-600 to-purple-500 px-6 py-3 text-sm font-medium text-white transition hover:from-purple-500 hover:to-purple-400 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {runningAIReview && (
-                        <RefreshCw
-                          size={16}
-                          className="animate-spin"
-                        />
+                        <RefreshCw size={16} className="animate-spin" />
                       )}
 
-                      {runningAIReview
-                        ? "Reviewing..."
-                        : "Review with AI"}
+                      {runningAIReview ? "Reviewing..." : "Review with AI"}
                     </button>
 
                     {/* MERGE */}
 
                     <button
                       type="button"
-                      onClick={() =>
-                        openPRActionConfirmation("merge")
-                      }
-                      disabled={
-                        runningAIReview ||
-                        processingPRAction
-                      }
+                      onClick={() => openPRActionConfirmation("merge")}
+                      disabled={runningAIReview || processingPRAction}
                       className="flex items-center justify-center gap-2 rounded-lg border border-purple-500/30 bg-purple-500/10 px-6 py-3 text-sm font-medium text-purple-300 transition hover:bg-purple-500/20 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <GitMerge size={16} />
@@ -1530,28 +1208,18 @@ function PullRequests() {
 
                     <button
                       type="button"
-                      onClick={() =>
-                        openPRActionConfirmation("close")
-                      }
-                      disabled={
-                        runningAIReview ||
-                        processingPRAction
-                      }
+                      onClick={() => openPRActionConfirmation("close")}
+                      disabled={runningAIReview || processingPRAction}
                       className="flex items-center justify-center gap-2 rounded-lg border border-red-500/20 bg-red-500/5 px-6 py-3 text-sm font-medium text-red-300 transition hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <X size={16} />
                       Close PR
                     </button>
-
                   </div>
                 )}
-
               </div>
-
             </div>
-
           </div>
-
         </main>
 
         {/* ========================================================
@@ -1561,7 +1229,6 @@ function PullRequests() {
         {showPRActionModal && selectedPR && (
           <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
             <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#111116] shadow-2xl">
-
               <div className="flex items-start justify-between border-b border-white/10 p-6">
                 <div>
                   <h2 className="text-lg font-semibold text-white">
@@ -1587,30 +1254,30 @@ function PullRequests() {
               </div>
 
               <div className="p-6">
-
                 {prAction === "merge" ? (
                   <div className="rounded-xl border border-purple-500/20 bg-purple-500/5 p-4">
                     <p className="text-sm leading-6 text-gray-300">
-                      This will perform the real GitHub merge. The pull
-                      request will be merged into{" "}
+                      This will perform the real GitHub merge. The pull request
+                      will be merged into{" "}
                       <span className="font-medium text-white">
                         {selectedPR.base_branch}
-                      </span>.
+                      </span>
+                      .
                     </p>
                     <p className="mt-3 text-xs leading-5 text-gray-500">
-                      Make sure the AI review and GitHub checks are
-                      satisfactory before continuing.
+                      Make sure the AI review and GitHub checks are satisfactory
+                      before continuing.
                     </p>
                   </div>
                 ) : (
                   <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-4">
                     <p className="text-sm leading-6 text-gray-300">
-                      This will close the real GitHub pull request
-                      without merging it.
+                      This will close the real GitHub pull request without
+                      merging it.
                     </p>
                     <p className="mt-3 text-xs leading-5 text-gray-500">
-                      The PR will remain visible in Velocyte under
-                      Closed Pull Requests.
+                      The PR will remain visible in Velocyte under Closed Pull
+                      Requests.
                     </p>
                   </div>
                 )}
@@ -1622,7 +1289,6 @@ function PullRequests() {
                 )}
 
                 <div className="mt-6 flex justify-end gap-3">
-
                   <button
                     type="button"
                     onClick={closePRActionConfirmation}
@@ -1643,10 +1309,7 @@ function PullRequests() {
                     }
                   >
                     {processingPRAction && (
-                      <RefreshCw
-                        size={16}
-                        className="animate-spin"
-                      />
+                      <RefreshCw size={16} className="animate-spin" />
                     )}
 
                     {processingPRAction
@@ -1654,17 +1317,14 @@ function PullRequests() {
                         ? "Merging..."
                         : "Closing..."
                       : prAction === "merge"
-                      ? "Confirm Merge"
-                      : "Confirm Close"}
+                        ? "Confirm Merge"
+                        : "Confirm Close"}
                   </button>
-
                 </div>
-
               </div>
             </div>
           </div>
         )}
-
       </div>
     );
   }
@@ -1675,100 +1335,62 @@ function PullRequests() {
 
   return (
     <div className="min-h-screen bg-[#07070a] text-white">
-
       <Sidebar />
 
       <main className="ml-64 min-h-screen p-8">
-
         <div className="mx-auto max-w-7xl">
-
           {/* ====================================================
               HEADER
           ==================================================== */}
 
           <div className="mb-8 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-
             <div>
-
-              <h1 className="text-3xl font-bold">
-                Pull Requests
-              </h1>
+              <h1 className="text-3xl font-bold">Pull Requests</h1>
 
               <p className="mt-2 text-gray-400">
                 View and review real GitHub pull requests.
               </p>
-
             </div>
 
             {/* PROJECT SELECTOR */}
 
             <div className="flex items-center gap-3">
-
-              <FolderKanban
-                size={18}
-                className="text-purple-400"
-              />
+              <FolderKanban size={18} className="text-purple-400" />
 
               <select
                 value={selectedProject}
-                onChange={(event) =>
-                  setSelectedProject(
-                    event.target.value
-                  )
-                }
+                onChange={(event) => setSelectedProject(event.target.value)}
                 className="min-w-[260px] rounded-lg border border-white/10 bg-[#111116] px-4 py-3 text-sm text-white outline-none focus:border-purple-500"
               >
-
-                <option value="">
-                  Select GitHub project
-                </option>
+                <option value="">Select GitHub project</option>
 
                 {projects
                   .filter(
                     (project) =>
                       project.github_repo_id &&
                       project.github_owner &&
-                      project.github_repository
+                      project.github_repository,
                   )
-                  .map(
-                    (project) => (
-                      <option
-                        key={project.id}
-                        value={project.id}
-                      >
-                        {project.name}
-                      </option>
-                    )
-                  )}
-
+                  .map((project) => (
+                    <option key={project.id} value={project.id}>
+                      {project.name}
+                    </option>
+                  ))}
               </select>
 
               <button
                 type="button"
-                onClick={() =>
-                  fetchGithubPullRequests()
-                }
-                disabled={
-                  !selectedProject ||
-                  loadingPRs
-                }
+                onClick={() => fetchGithubPullRequests()}
+                disabled={!selectedProject || loadingPRs}
                 className="flex h-11 w-11 items-center justify-center rounded-lg border border-white/10 bg-[#111116] text-gray-400 transition hover:bg-white/5 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
                 title="Refresh pull requests"
               >
-
                 <RefreshCw
                   size={18}
-                  className={
-                    loadingPRs
-                      ? "animate-spin"
-                      : ""
-                  }
+                  className={loadingPRs ? "animate-spin" : ""}
                 />
-
               </button>
-
             </div>
-
           </div>
 
           {/* ====================================================
@@ -1777,9 +1399,7 @@ function PullRequests() {
 
           {currentProject && (
             <div className="mb-6 flex flex-col gap-2 rounded-xl border border-purple-500/20 bg-purple-500/5 px-5 py-4 md:flex-row md:items-center md:justify-between">
-
               <div>
-
                 <p className="text-xs uppercase tracking-wide text-gray-500">
                   Connected repository
                 </p>
@@ -1788,7 +1408,6 @@ function PullRequests() {
                   {currentProject.github_owner}/
                   {currentProject.github_repository}
                 </p>
-
               </div>
 
               <a
@@ -1800,7 +1419,6 @@ function PullRequests() {
                 Open GitHub
                 <ExternalLink size={15} />
               </a>
-
             </div>
           )}
 
@@ -1810,9 +1428,7 @@ function PullRequests() {
 
           {selectedProject && (
             <div className="mb-6 flex flex-col gap-4 md:flex-row">
-
               <div className="relative max-w-md flex-1">
-
                 <Search
                   size={18}
                   className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500"
@@ -1821,45 +1437,25 @@ function PullRequests() {
                 <input
                   type="text"
                   value={search}
-                  onChange={(event) =>
-                    setSearch(
-                      event.target.value
-                    )
-                  }
+                  onChange={(event) => setSearch(event.target.value)}
                   placeholder="Search GitHub pull requests..."
                   className="w-full rounded-lg border border-white/10 bg-[#111116] py-3 pl-11 pr-4 text-sm text-white outline-none placeholder:text-gray-600 focus:border-purple-500"
                 />
-
               </div>
 
               <select
                 value={statusFilter}
-                onChange={(event) =>
-                  setStatusFilter(
-                    event.target.value
-                  )
-                }
+                onChange={(event) => setStatusFilter(event.target.value)}
                 className="rounded-lg border border-white/10 bg-[#111116] px-4 py-3 text-sm text-gray-300 outline-none focus:border-purple-500"
               >
+                <option value="all">All statuses</option>
 
-                <option value="all">
-                  All statuses
-                </option>
+                <option value="open">Open</option>
 
-                <option value="open">
-                  Open
-                </option>
+                <option value="merged">Merged</option>
 
-                <option value="merged">
-                  Merged
-                </option>
-
-                <option value="closed">
-                  Closed
-                </option>
-
+                <option value="closed">Closed</option>
               </select>
-
             </div>
           )}
 
@@ -1879,7 +1475,6 @@ function PullRequests() {
 
           {!selectedProject && !error && (
             <div className="flex flex-col items-center justify-center rounded-xl border border-white/10 bg-[#111116] px-6 py-20 text-center">
-
               <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-purple-500/10 text-purple-400">
                 <GitPullRequest size={25} />
               </div>
@@ -1889,9 +1484,9 @@ function PullRequests() {
               </h2>
 
               <p className="mt-2 max-w-md text-sm text-gray-500">
-                Select a project connected to a GitHub repository to view its real pull requests.
+                Select a project connected to a GitHub repository to view its
+                real pull requests.
               </p>
-
             </div>
           )}
 
@@ -1899,21 +1494,16 @@ function PullRequests() {
               LOADING
           ==================================================== */}
 
-          {selectedProject &&
-            loadingPRs && (
-              <div className="space-y-3">
-
-                {[1, 2, 3].map(
-                  (item) => (
-                    <div
-                      key={item}
-                      className="h-32 animate-pulse rounded-xl bg-[#111116]"
-                    />
-                  )
-                )}
-
-              </div>
-            )}
+          {selectedProject && loadingPRs && (
+            <div className="space-y-3">
+              {[1, 2, 3].map((item) => (
+                <div
+                  key={item}
+                  className="h-32 animate-pulse rounded-xl bg-[#111116]"
+                />
+              ))}
+            </div>
+          )}
 
           {/* ====================================================
               EMPTY
@@ -1922,30 +1512,23 @@ function PullRequests() {
           {selectedProject &&
             !loadingPRs &&
             !prError &&
-            filteredPullRequests.length ===
-              0 && (
+            filteredPullRequests.length === 0 && (
               <div className="flex flex-col items-center justify-center rounded-xl border border-white/10 bg-[#111116] px-6 py-20 text-center">
-
                 <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-purple-500/10 text-purple-400">
                   <GitPullRequest size={25} />
                 </div>
 
                 <h2 className="mt-5 text-lg font-semibold">
-                  {search ||
-                  statusFilter !==
-                    "all"
+                  {search || statusFilter !== "all"
                     ? "No pull requests found"
                     : "No GitHub pull requests"}
                 </h2>
 
                 <p className="mt-2 max-w-md text-sm text-gray-500">
-                  {search ||
-                  statusFilter !==
-                    "all"
+                  {search || statusFilter !== "all"
                     ? "Try changing your search or status filter."
                     : "This repository does not currently have any pull requests."}
                 </p>
-
               </div>
             )}
 
@@ -1958,7 +1541,6 @@ function PullRequests() {
             !prError &&
             filteredPullRequests.length > 0 && (
               <div className="space-y-8">
-
                 {/* ==================================================
                     OPEN
                 ================================================== */}
@@ -1966,22 +1548,12 @@ function PullRequests() {
                 {openPullRequests.length > 0 && (
                   <PRSection
                     title="Open Pull Requests"
-                    count={
-                      openPullRequests.length
-                    }
+                    count={openPullRequests.length}
                     status="open"
-                    pullRequests={
-                      openPullRequests
-                    }
-                    onSelectPR={
-                      handleSelectPR
-                    }
-                    getStatusStyles={
-                      getStatusStyles
-                    }
-                    formatDate={
-                      formatDate
-                    }
+                    pullRequests={openPullRequests}
+                    onSelectPR={handleSelectPR}
+                    getStatusStyles={getStatusStyles}
+                    formatDate={formatDate}
                   />
                 )}
 
@@ -1989,26 +1561,15 @@ function PullRequests() {
                     MERGED
                 ================================================== */}
 
-                {mergedPullRequests.length >
-                  0 && (
+                {mergedPullRequests.length > 0 && (
                   <PRSection
                     title="Merged Pull Requests"
-                    count={
-                      mergedPullRequests.length
-                    }
+                    count={mergedPullRequests.length}
                     status="merged"
-                    pullRequests={
-                      mergedPullRequests
-                    }
-                    onSelectPR={
-                      handleSelectPR
-                    }
-                    getStatusStyles={
-                      getStatusStyles
-                    }
-                    formatDate={
-                      formatDate
-                    }
+                    pullRequests={mergedPullRequests}
+                    onSelectPR={handleSelectPR}
+                    getStatusStyles={getStatusStyles}
+                    formatDate={formatDate}
                   />
                 )}
 
@@ -2016,32 +1577,19 @@ function PullRequests() {
                     CLOSED
                 ================================================== */}
 
-                {closedPullRequests.length >
-                  0 && (
+                {closedPullRequests.length > 0 && (
                   <PRSection
                     title="Closed Pull Requests"
-                    count={
-                      closedPullRequests.length
-                    }
+                    count={closedPullRequests.length}
                     status="closed"
-                    pullRequests={
-                      closedPullRequests
-                    }
-                    onSelectPR={
-                      handleSelectPR
-                    }
-                    getStatusStyles={
-                      getStatusStyles
-                    }
-                    formatDate={
-                      formatDate
-                    }
+                    pullRequests={closedPullRequests}
+                    onSelectPR={handleSelectPR}
+                    getStatusStyles={getStatusStyles}
+                    formatDate={formatDate}
                   />
                 )}
-
               </div>
             )}
-
         </div>
       </main>
 
@@ -2051,9 +1599,7 @@ function PullRequests() {
 
       {loadingPRDetails && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm">
-
           <div className="rounded-xl border border-white/10 bg-[#111116] px-8 py-6 text-center">
-
             <RefreshCw
               size={24}
               className="mx-auto animate-spin text-purple-400"
@@ -2062,9 +1608,7 @@ function PullRequests() {
             <p className="mt-4 text-sm text-gray-300">
               Loading pull request...
             </p>
-
           </div>
-
         </div>
       )}
 
@@ -2074,36 +1618,23 @@ function PullRequests() {
 
       {prDetailsError && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm">
-
           <div className="w-full max-w-md rounded-xl border border-red-500/20 bg-[#111116] p-6">
-
             <div className="flex items-start justify-between">
-
-              <h2 className="font-semibold text-white">
-                Unable to load PR
-              </h2>
+              <h2 className="font-semibold text-white">Unable to load PR</h2>
 
               <button
                 type="button"
-                onClick={() =>
-                  setPrDetailsError("")
-                }
+                onClick={() => setPrDetailsError("")}
                 className="text-gray-500 hover:text-white"
               >
                 <X size={18} />
               </button>
-
             </div>
 
-            <p className="mt-3 text-sm text-red-400">
-              {prDetailsError}
-            </p>
-
+            <p className="mt-3 text-sm text-red-400">{prDetailsError}</p>
           </div>
-
         </div>
       )}
-
     </div>
   );
 }
@@ -2123,29 +1654,22 @@ function PRSection({
 }) {
   return (
     <section>
-
       {/* ======================================================
           SECTION HEADER
       ====================================================== */}
 
       <div className="mb-3 flex items-center justify-between">
-
         <div className="flex items-center gap-3">
-
-          <h2 className="text-lg font-semibold text-white">
-            {title}
-          </h2>
+          <h2 className="text-lg font-semibold text-white">{title}</h2>
 
           <span
             className={`rounded-full px-2.5 py-1 text-xs font-medium ${getStatusStyles(
-              status
+              status,
             )}`}
           >
             {count}
           </span>
-
         </div>
-
       </div>
 
       {/* ======================================================
@@ -2153,170 +1677,106 @@ function PRSection({
       ====================================================== */}
 
       <div className="overflow-hidden rounded-xl border border-white/10 bg-[#111116]">
-
-        {pullRequests.map(
-          (pullRequest) => (
-            <div
-              key={
-                pullRequest.number
+        {pullRequests.map((pullRequest) => (
+          <div
+            key={pullRequest.number}
+            onClick={() => onSelectPR(pullRequest)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                onSelectPR(pullRequest);
               }
-              onClick={() =>
-                onSelectPR(
-                  pullRequest
-                )
-              }
-              role="button"
-              tabIndex={0}
-              onKeyDown={(event) => {
-                if (
-                  event.key ===
-                  "Enter"
-                ) {
-                  onSelectPR(
-                    pullRequest
-                  );
-                }
-              }}
-              className="group cursor-pointer border-b border-white/10 px-6 py-5 transition last:border-b-0 hover:bg-white/[0.025]"
-            >
-
-              <div className="flex flex-col gap-5 lg:flex-row lg:items-center">
-
-                {/* ==================================================
+            }}
+            className="group cursor-pointer border-b border-white/10 px-6 py-5 transition last:border-b-0 hover:bg-white/[0.025]"
+          >
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-center">
+              {/* ==================================================
                     TITLE
                 ================================================== */}
 
-                <div className="min-w-0 flex-1">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-start gap-3">
+                  <GitPullRequest
+                    size={19}
+                    className="mt-1 shrink-0 text-purple-400"
+                  />
 
-                  <div className="flex items-start gap-3">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm text-gray-500">
+                        #{pullRequest.number}
+                      </span>
 
-                    <GitPullRequest
-                      size={19}
-                      className="mt-1 shrink-0 text-purple-400"
-                    />
-
-                    <div className="min-w-0">
-
-                      <div className="flex flex-wrap items-center gap-2">
-
-                        <span className="text-sm text-gray-500">
-                          #{pullRequest.number}
-                        </span>
-
-                        <h3 className="font-semibold text-white group-hover:text-purple-300">
-                          {
-                            pullRequest.title
-                          }
-                        </h3>
-
-                      </div>
-
-                      <p className="mt-1 text-xs text-gray-500">
-                        Updated{" "}
-                        {formatDate(
-                          pullRequest.updated_at
-                        )}
-                      </p>
-
+                      <h3 className="font-semibold text-white group-hover:text-purple-300">
+                        {pullRequest.title}
+                      </h3>
                     </div>
 
+                    <p className="mt-1 text-xs text-gray-500">
+                      Updated {formatDate(pullRequest.updated_at)}
+                    </p>
                   </div>
-
                 </div>
+              </div>
 
-                {/* ==================================================
+              {/* ==================================================
                     BRANCH
                 ================================================== */}
 
-                <div className="flex min-w-[220px] items-center gap-2 text-sm text-gray-400">
+              <div className="flex min-w-[220px] items-center gap-2 text-sm text-gray-400">
+                <GitBranch size={16} className="shrink-0 text-purple-400" />
 
-                  <GitBranch
-                    size={16}
-                    className="shrink-0 text-purple-400"
-                  />
+                <span className="truncate">{pullRequest.head_branch}</span>
 
-                  <span className="truncate">
-                    {
-                      pullRequest.head_branch
-                    }
-                  </span>
+                <span className="text-gray-600">→</span>
 
-                  <span className="text-gray-600">
-                    →
-                  </span>
+                <span className="truncate text-gray-500">
+                  {pullRequest.base_branch}
+                </span>
+              </div>
 
-                  <span className="truncate text-gray-500">
-                    {
-                      pullRequest.base_branch
-                    }
-                  </span>
-
-                </div>
-
-                {/* ==================================================
+              {/* ==================================================
                     AUTHOR
                 ================================================== */}
 
-                <div className="min-w-[140px] text-sm text-gray-400">
+              <div className="min-w-[140px] text-sm text-gray-400">
+                {pullRequest.author || "Unknown"}
+              </div>
 
-                  {pullRequest.author ||
-                    "Unknown"}
-
-                </div>
-
-                {/* ==================================================
+              {/* ==================================================
                     STATUS
                 ================================================== */}
 
-                <div className="min-w-[90px]">
+              <div className="min-w-[90px]">
+                <span
+                  className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${getStatusStyles(
+                    status,
+                  )}`}
+                >
+                  {status.charAt(0).toUpperCase() + status.slice(1)}
+                </span>
+              </div>
 
-                  <span
-                    className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${getStatusStyles(
-                      status
-                    )}`}
-                  >
-                    {status
-                      .charAt(0)
-                      .toUpperCase() +
-                      status.slice(1)}
-                  </span>
-
-                </div>
-
-                {/* ==================================================
+              {/* ==================================================
                     GITHUB LINK
                 ================================================== */}
 
-                <div
-                  onClick={(event) =>
-                    event.stopPropagation()
-                  }
+              <div onClick={(event) => event.stopPropagation()}>
+                <a
+                  href={pullRequest.html_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 transition hover:bg-purple-500/10 hover:text-purple-400"
+                  title="Open on GitHub"
                 >
-
-                  <a
-                    href={
-                      pullRequest.html_url
-                    }
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 transition hover:bg-purple-500/10 hover:text-purple-400"
-                    title="Open on GitHub"
-                  >
-                    <ExternalLink
-                      size={17}
-                    />
-                  </a>
-
-                </div>
-
+                  <ExternalLink size={17} />
+                </a>
               </div>
-
             </div>
-          )
-        )}
-
+          </div>
+        ))}
       </div>
-
     </section>
   );
 }

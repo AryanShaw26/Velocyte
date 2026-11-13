@@ -45,3 +45,9 @@ class TokenResponse(BaseModel):
     refresh_token: str
     token_type: str
     user: UserResponse
+
+class OAuthCodeExchangeRequest(BaseModel):
+    code: str = Field(
+        min_length=20,
+        max_length=200
+    )

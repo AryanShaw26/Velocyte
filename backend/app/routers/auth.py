@@ -1,5 +1,6 @@
 import uuid
-
+import secrets
+import hashlib
 from datetime import datetime
 
 from urllib.parse import urlencode
@@ -19,7 +20,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
-from app.db.models import User
+from app.db.models import User, OAuthAuthorizationCode
 
 from app.core.dependencies import get_current_user
 from app.core.config import settings
@@ -38,12 +39,13 @@ from app.schemas.auth import (
     ProfileUpdateRequest,
     UserResponse,
     TokenResponse,
+    OAuthCodeExchangeRequest,
 )
 from app.services.oauth_state_service import (
     create_oauth_state,
     consume_oauth_state,
 )
-
+from app.core.token_encryption import encrypt_github_token
 
 from datetime import datetime, timedelta, timezone
 router = APIRouter(
@@ -55,8 +57,6 @@ router = APIRouter(
 # ============================================================
 # CONSTANTS
 # ============================================================
-
-JWT_ALGORITHM = "HS256"
 
 GITHUB_AUTHORIZE_URL = (
     "https://github.com/login/oauth/authorize"
@@ -265,7 +265,96 @@ def refresh_access_token(
             is_verified=user.is_verified
         )
     )
+# ============================================================
+# GITHUB OAUTH — EXCHANGE ONE-TIME CODE
+# ============================================================
 
+@router.post(
+    "/github/exchange",
+    response_model=TokenResponse
+)
+def exchange_github_code(
+    data: OAuthCodeExchangeRequest,
+    db: Session = Depends(get_db)
+):
+
+    # Hash the received authorization code
+    code_hash = hashlib.sha256(
+        data.code.encode("utf-8")
+    ).hexdigest()
+
+    # Find and lock the authorization-code record
+    oauth_code = (
+        db.query(OAuthAuthorizationCode)
+        .filter(
+            OAuthAuthorizationCode.code_hash == code_hash,
+            OAuthAuthorizationCode.purpose == "login"
+        )
+        .with_for_update()
+        .first()
+    )
+
+    # Validate the authorization code
+    if not oauth_code:
+
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authorization code."
+        )
+
+    if oauth_code.consumed_at is not None:
+
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authorization code has already been used."
+        )
+
+    if oauth_code.expires_at <= datetime.now(timezone.utc):
+
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authorization code has expired."
+        )
+
+    # Find the associated Velocyte user
+    user = (
+        db.query(User)
+        .filter(User.id == oauth_code.user_id)
+        .first()
+    )
+
+    if not user:
+
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Associated user account was not found."
+        )
+
+    # Consume the code before issuing tokens
+    oauth_code.consumed_at = datetime.now(timezone.utc)
+
+    db.commit()
+
+    # Generate Velocyte JWT tokens
+    access_token = create_access_token(
+        str(user.id)
+    )
+
+    refresh_token = create_refresh_token(
+        str(user.id)
+    )
+
+    return TokenResponse(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        token_type="bearer",
+        user=UserResponse(
+            id=str(user.id),
+            name=user.name,
+            email=user.email,
+            is_verified=user.is_verified
+        )
+    )
 
 # ============================================================
 # GET CURRENT USER
@@ -449,34 +538,6 @@ async def github_callback(
     )
 
     # --------------------------------------------------------
-    # Validate OAuth state
-    # --------------------------------------------------------
-
-    try:
-
-        state_payload = jwt.decode(
-            state,
-            settings.SECRET_KEY,
-            algorithms=[JWT_ALGORITHM]
-        )
-
-        oauth_type = state_payload.get("type")
-
-        if oauth_type not in {
-            "github_oauth_state",
-            "github_connect_state"
-        }:
-
-            raise JWTError()
-
-    except JWTError:
-
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid or expired OAuth state"
-        )
-
-    # --------------------------------------------------------
     # Exchange authorization code for GitHub access token
     # --------------------------------------------------------
 
@@ -521,6 +582,9 @@ async def github_callback(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail="GitHub did not return an access token"
             )
+        encrypted_github_access_token = encrypt_github_token(
+            github_access_token
+        )
 
         # ----------------------------------------------------
         # Get authenticated GitHub user
@@ -639,7 +703,7 @@ async def github_callback(
         # Get Velocyte user ID from signed OAuth state
         # ----------------------------------------------------
 
-        target_user_id = ouath_user_id
+        target_user_id = oauth_user_id
 
         if not target_user_id:
 
@@ -720,7 +784,7 @@ async def github_callback(
         target_user.github_username = github_username
 
         target_user.github_access_token = (
-            github_access_token
+            encrypted_github_access_token
         )
 
         target_user.is_verified = True
@@ -750,11 +814,6 @@ async def github_callback(
             f"/github-connect-callback?{params}"
         )
 
-        print(
-            "GITHUB CONNECT REDIRECT:",
-            frontend_url
-        )
-
         return RedirectResponse(
             url=frontend_url,
             status_code=status.HTTP_302_FOUND
@@ -777,32 +836,31 @@ async def github_callback(
     )
 
     # ========================================================
-    # LINK GITHUB TO EXISTING EMAIL ACCOUNT
+# PREVENT AUTOMATIC EMAIL-BASED ACCOUNT LINKING
+# ========================================================
+
     # ========================================================
+# PREVENT AUTOMATIC EMAIL-BASED ACCOUNT LINKING
+# ========================================================
 
     if not user:
 
-        user = (
-            db.query(User)
-            .filter(
-                User.email == github_email
+        existing_email_user = (
+        db.query(User)
+        .filter(User.email == github_email)
+        .first()
+    )
+
+    if existing_email_user:
+
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "An account with this email already exists. "
+                "Please log in using your existing Velocyte "
+                "credentials and connect GitHub from your profile."
             )
-            .first()
         )
-
-        if user:
-
-            user.github_id = github_id
-
-            user.github_username = (
-                github_username
-            )
-
-            user.github_access_token = (
-                github_access_token
-            )
-
-            user.is_verified = True
 
     # ========================================================
     # CREATE NEW USER
@@ -829,7 +887,7 @@ async def github_callback(
             github_username=github_username,
 
             github_access_token=(
-                github_access_token
+                encrypted_github_access_token
             ),
 
             is_verified=True
@@ -850,7 +908,7 @@ async def github_callback(
         )
 
         user.github_access_token = (
-            github_access_token
+            encrypted_github_access_token
         )
 
     # ========================================================
@@ -861,33 +919,42 @@ async def github_callback(
 
     db.refresh(user)
 
-    # ========================================================
-    # CREATE VELOCYTE TOKENS
+        # ========================================================
+    # GENERATE ONE-TIME VELOCYTE AUTHORIZATION CODE
     # ========================================================
 
-    access_token = create_access_token(
-        str(user.id)
+    # Generate a cryptographically secure random code
+    authorization_code = secrets.token_urlsafe(32)
+
+    # Store only the SHA256 hash in the database
+    code_hash = hashlib.sha256(
+        authorization_code.encode("utf-8")
+    ).hexdigest()
+
+    # Authorization code expires after 2 minutes
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=2)
+
+    oauth_code = OAuthAuthorizationCode(
+        code_hash=code_hash,
+        user_id=user.id,
+        purpose="login",
+        expires_at=expires_at
     )
 
-    refresh_token = create_refresh_token(
-        str(user.id)
-    )
+    db.add(oauth_code)
+    db.commit()
 
     # ========================================================
-    # REDIRECT TO FRONTEND
+    # REDIRECT TO FRONTEND WITH ONE-TIME CODE
     # ========================================================
 
-    params = urlencode(
-        {
-            "access_token": access_token,
-            "refresh_token": refresh_token,
-            "token_type": "bearer",
-        }
-    )
+    params = urlencode({
+        "code": authorization_code
+    })
 
     frontend_url = (
         f"{settings.FRONTEND_URL}"
-        f"/github-callback#{params}"
+        f"/github-callback?{params}"
     )
 
     return RedirectResponse(

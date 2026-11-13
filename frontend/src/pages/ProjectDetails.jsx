@@ -12,8 +12,7 @@ import {
 } from "lucide-react";
 
 import Sidebar from "../components/dashboard/Sidebar";
-import { useAuth } from "../context/AuthContext";
-
+import { useAuth } from "../context/useAuth";
 import CreateTaskModal from "../components/tasks/CreateTaskModal";
 
 function ProjectDetails() {

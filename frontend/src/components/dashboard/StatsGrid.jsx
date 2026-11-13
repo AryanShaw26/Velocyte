@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 
 import StatsCard from "./StatsCard";
+import { useAuth } from "../../context/useAuth";
 
-import { useAuth } from "../../context/AuthContext";
 
 
 function StatsGrid({ refreshKey }) {

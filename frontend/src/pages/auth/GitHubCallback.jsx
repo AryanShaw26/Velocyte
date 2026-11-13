@@ -1,201 +1,153 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { useAuth } from "../../context/AuthContext";
+import { useAuth } from "../../context/useAuth";
+import { exchangeGithubCode } from "../../services/authService";
 
 function GitHubCallback() {
-  const navigate = useNavigate();
-  const { loginWithTokens } = useAuth();
+    const navigate = useNavigate();
+    const { loginWithTokens } = useAuth();
 
-  const [error, setError] = useState("");
+    const [error, setError] = useState("");
 
-  // Prevent the callback from being processed twice
-  const processedRef = useRef(false);
+    const processedRef = useRef(false);
 
-  useEffect(() => {
-    const handleGitHubCallback = async () => {
-      // --------------------------------------------------
-      // Prevent duplicate callback processing
-      // --------------------------------------------------
+    useEffect(() => {
+        const handleGitHubCallback = async () => {
 
-      if (processedRef.current) {
-        return;
-      }
+            if (processedRef.current) {
+                return;
+            }
 
-      processedRef.current = true;
+            processedRef.current = true;
 
-      try {
-        // --------------------------------------------------
-        // Read tokens from URL hash
-        // --------------------------------------------------
+            try {
+                // Read one-time authorization code
+                const params = new URLSearchParams(
+                    window.location.search
+                );
 
-        const hash = window.location.hash.substring(1);
+                const code = params.get("code");
 
-        const params = new URLSearchParams(hash);
+                if (!code) {
+                    throw new Error(
+                        "GitHub authorization code was not received."
+                    );
+                }
 
-        const accessToken = params.get("access_token");
-        const refreshToken = params.get("refresh_token");
+                // Remove code from browser URL immediately
+                window.history.replaceState(
+                    {},
+                    document.title,
+                    "/github-callback"
+                );
 
-        // --------------------------------------------------
-        // If tokens are missing, check whether another
-        // callback process has already handled them.
-        // --------------------------------------------------
+                // Exchange one-time code for Velocyte JWT tokens
+                const tokenData = await exchangeGithubCode(code);
 
-        if (!accessToken || !refreshToken) {
-          const alreadyProcessed = sessionStorage.getItem(
-            "github_oauth_processed"
-          );
+                // Store tokens and update authentication state
+                await loginWithTokens(
+                    tokenData.access_token,
+                    tokenData.refresh_token
+                );
 
-          if (alreadyProcessed === "true") {
-            navigate("/dashboard", {
-              replace: true,
-            });
+                // Redirect to dashboard
+                navigate("/dashboard", {
+                    replace: true,
+                });
 
-            return;
-          }
+            } catch (err) {
 
-          throw new Error(
-            "GitHub authentication tokens were not received."
-          );
-        }
+                console.error(
+                    "GitHub authentication failed:",
+                    err
+                );
 
-        // --------------------------------------------------
-        // Mark OAuth callback as being processed
-        // --------------------------------------------------
+                setError(
+                    err?.message ||
+                    "GitHub authentication failed."
+                );
+            }
+        };
 
-        sessionStorage.setItem(
-          "github_oauth_processed",
-          "true"
+        handleGitHubCallback();
+
+    }, [loginWithTokens, navigate]);
+
+    // Error screen
+    if (error) {
+        return (
+            <div
+                style={{
+                    minHeight: "100vh",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "white",
+                    background: "#09090b",
+                    padding: "24px",
+                }}
+            >
+                <div
+                    style={{
+                        textAlign: "center",
+                        maxWidth: "500px",
+                    }}
+                >
+                    <h2>GitHub Authentication Failed</h2>
+
+                    <p
+                        style={{
+                            color: "#a1a1aa",
+                            marginTop: "10px",
+                        }}
+                    >
+                        {error}
+                    </p>
+
+                    <button
+                        onClick={() => navigate("/login")}
+                        style={{
+                            marginTop: "20px",
+                            padding: "10px 20px",
+                            borderRadius: "8px",
+                            border: "none",
+                            cursor: "pointer",
+                        }}
+                    >
+                        Back to Login
+                    </button>
+                </div>
+            </div>
         );
+    }
 
-        // --------------------------------------------------
-        // Store Velocyte tokens and update auth state
-        // --------------------------------------------------
-
-        await loginWithTokens(
-          accessToken,
-          refreshToken
-        );
-
-        // --------------------------------------------------
-        // Remove tokens from browser URL
-        // --------------------------------------------------
-
-        window.history.replaceState(
-          {},
-          document.title,
-          "/github-callback"
-        );
-
-        // --------------------------------------------------
-        // Redirect to dashboard
-        // --------------------------------------------------
-
-        navigate("/dashboard", {
-          replace: true,
-        });
-
-      } catch (err) {
-        console.error(
-          "GitHub authentication failed:",
-          err
-        );
-
-        // Allow another legitimate login attempt
-        sessionStorage.removeItem(
-          "github_oauth_processed"
-        );
-
-        setError(
-          err?.message ||
-          "GitHub authentication failed."
-        );
-      }
-    };
-
-    handleGitHubCallback();
-  }, [loginWithTokens, navigate]);
-
-  // --------------------------------------------------------
-  // Error screen
-  // --------------------------------------------------------
-
-  if (error) {
+    // Loading screen
     return (
-      <div
-        style={{
-          minHeight: "100vh",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color: "white",
-          background: "#09090b",
-          padding: "24px",
-        }}
-      >
         <div
-          style={{
-            textAlign: "center",
-            maxWidth: "500px",
-          }}
+            style={{
+                minHeight: "100vh",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "white",
+                background: "#09090b",
+            }}
         >
-          <h2>GitHub Authentication Failed</h2>
+            <div style={{ textAlign: "center" }}>
+                <h2>Signing you in with GitHub...</h2>
 
-          <p
-            style={{
-              color: "#a1a1aa",
-              marginTop: "10px",
-            }}
-          >
-            {error}
-          </p>
-
-          <button
-            onClick={() => navigate("/login")}
-            style={{
-              marginTop: "20px",
-              padding: "10px 20px",
-              borderRadius: "8px",
-              border: "none",
-              cursor: "pointer",
-            }}
-          >
-            Back to Login
-          </button>
+                <p
+                    style={{
+                        color: "#a1a1aa",
+                        marginTop: "10px",
+                    }}
+                >
+                    Please wait while we complete authentication.
+                </p>
+            </div>
         </div>
-      </div>
     );
-  }
-
-  // --------------------------------------------------------
-  // Loading screen
-  // --------------------------------------------------------
-
-  return (
-    <div
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        color: "white",
-        background: "#09090b",
-      }}
-    >
-      <div style={{ textAlign: "center" }}>
-        <h2>Signing you in with GitHub...</h2>
-
-        <p
-          style={{
-            color: "#a1a1aa",
-            marginTop: "10px",
-          }}
-        >
-          Please wait while we complete authentication.
-        </p>
-      </div>
-    </div>
-  );
 }
 
 export default GitHubCallback;
